@@ -72,3 +72,14 @@ app.use("/api", apiRouter);
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
+
+// Graceful shutdown - save training data before exit
+let isShuttingDown = false;
+process.on('SIGINT', async () => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log('\nShutting down gracefully...');
+  await train.processData();
+  console.log('Training data saved. Goodbye!');
+  process.exit(0);
+});
