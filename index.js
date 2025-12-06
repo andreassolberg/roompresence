@@ -1,26 +1,37 @@
+console.log("Starting Roomer...");
 const PersonTracker = require("./lib/PersonTracker");
+console.log("Loaded PersonTracker");
 const config = require("./lib/config");
+console.log("Loaded config");
 const express = require("express");
 const path = require("path");
+console.log("Loaded express and path");
 
 const TrainingData = require("./lib/TrainingData");
+console.log("Loaded TrainingData");
 const train = new TrainingData();
+console.log("Created TrainingData instance");
 
 let trackers = {};
 (async () => {
-  for (const person of config.people) {
-    console.log("Creating tracker for ", person.name);
-    trackers[person.id] = new PersonTracker(person.device, person.id);
-    await trackers[person.id].init();
+  try {
+    for (const person of config.people) {
+      console.log("Creating tracker for ", person.name);
+      trackers[person.id] = new PersonTracker(person.device, person.id);
+      await trackers[person.id].init();
 
-    if (person.id === "andreas") {
-      if (config.track) {
-        console.log("Enable tracking of data");
-        trackers.andreas.onSensorData((data) => {
-          train.addData(data);
-        });
+      if (person.id === config.uiPersonId) {
+        if (config.track) {
+          console.log(`Enable tracking of data for ${person.id}`);
+          trackers[person.id].onSensorData((data) => {
+            train.addData(data);
+          });
+        }
       }
     }
+    console.log("All trackers initialized successfully");
+  } catch (error) {
+    console.error("Error initializing trackers:", error);
   }
 })();
 
@@ -32,10 +43,18 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const apiRouter = express.Router();
 apiRouter.get("/sensors", (req, res) => {
-  res.json(trackers.andreas.getSensordataProcessed());
+  const personId = config.uiPersonId;
+  if (!trackers[personId]) {
+    return res.status(404).json({ error: `Tracker not found for person: ${personId}` });
+  }
+  res.json(trackers[personId].getSensordataProcessed());
 });
 apiRouter.get("/rooms", (req, res) => {
-  res.json(trackers.andreas.rooms);
+  const personId = config.uiPersonId;
+  if (!trackers[personId]) {
+    return res.status(404).json({ error: `Tracker not found for person: ${personId}` });
+  }
+  res.json(trackers[personId].rooms);
 });
 
 apiRouter.post("/room", (req, res) => {

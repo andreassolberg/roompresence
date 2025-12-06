@@ -64,10 +64,11 @@ The system recognizes 13 rooms: bad, gang, gjesterom, kjellergang, kjellerstua, 
 Config is loaded from `etc/config.json` with:
 - MQTT broker URL and credentials
 - List of people with device IDs (Bluetooth device names)
+- `uiPersonId` (optional) - Person ID to display in web UI and collect training data for (defaults to first person in list)
 - Feature flags: `publish` (send to MQTT), `track` (collect training data), `debug` (verbose logging)
 
 ### REST API
-- `GET /api/sensors` - Returns current processed sensor data for "andreas" tracker
+- `GET /api/sensors` - Returns current processed sensor data for the person specified by `uiPersonId` in config
 - `GET /api/rooms` - Returns list of valid room names
 - `POST /api/room` - Sets current room label for training data collection
 
@@ -79,5 +80,5 @@ Static HTML/JS served from `public/` directory. Used to label training data by c
 - The system is hardcoded for specific rooms/sensors - changes require updating room/sensor arrays in PersonTracker.js
 - Sensor staleness threshold is 20 seconds; readings are replaced with 15 (max distance) when stale
 - ONNX model path defaults to `./models/roompresense-bob.onnx` but can be overridden
-- Training data currently only collected for "andreas" person ID (see index.js:16-23)
+- Training data collection and web UI display are controlled by the `uiPersonId` config setting
 - Config file contains MQTT credentials - ensure it's not committed to version control
