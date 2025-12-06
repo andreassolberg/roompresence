@@ -10,7 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.21.2",
+    "express": "^4.22.1",
     "mqtt": "^5.10.3",
     "onnxruntime-node": "^1.20.1"
   }
