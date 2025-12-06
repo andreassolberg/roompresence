@@ -16,6 +16,19 @@ try {
     console.log(`No uiPersonId specified, defaulting to: ${config.uiPersonId}`);
   }
 
+  // Set default tracking variable if not specified
+  if (!config.tracking) {
+    config.tracking = "distance";
+  }
+
+  // Validate required config fields
+  if (!config.sensorOrder) {
+    throw new Error("sensorOrder must be defined in config.json");
+  }
+  if (!config.rooms) {
+    throw new Error("rooms must be defined in config.json");
+  }
+
   console.log(`Config loaded successfully`);
 } catch (err) {
   console.error("Failed to load configuration file:", err.message);

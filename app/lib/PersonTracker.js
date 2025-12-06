@@ -4,36 +4,23 @@ const config = require("./config");
 const EventEmitter = require("events");
 const { now } = require("./utils");
 
-const rooms = [
-  "bad",
-  "gang",
-  "gjesterom",
-  "kjellergang",
-  "kjellerstua",
-  "kjokken",
-  "kontor",
-  "linnea",
-  "linus",
-  "mb",
-  "stua",
-  "ute",
-  "vaskerom",
-];
-
-const sensors = [
-  "bad",
-  "vaskerom",
-  "mb",
-  "kjellerstua",
-  "kjokken",
-  "kontor",
-  "stua",
-];
-
 const processStatus = (status) => {
   let s = Object.assign({}, status);
   s.ago = now() - s.updated;
-  if (s.ago > 20) s.raw = 15;
+
+  // fresh er 1 hvis ago < 10, ellers 0
+  s.fresh = s.ago < 10 ? 1 : 0;
+
+  // Beregn value fra konfigurerbar kilde
+  const source = config.tracking === "raw" ? s.raw : s.distance;
+
+  // value er aldri større enn 10, og settes til 10 hvis ago > 10
+  if (s.ago > 10) {
+    s.value = 10;
+  } else {
+    s.value = Math.min(10, source);
+  }
+
   delete s.updated;
   return s;
 };
@@ -44,7 +31,7 @@ class PersonTracker {
     this.room5 = null;
     this.room15 = null;
     this.roomSince = now();
-    this.rooms = rooms;
+    this.rooms = null; // Will be loaded from model metadata
 
     this.emitter = new EventEmitter();
 
@@ -52,12 +39,8 @@ class PersonTracker {
 
     this.inference = new RoomPresenceInference();
     this.ready = false;
+    this.sensors = null; // Will be initialized from model metadata
 
-    this.sensors = sensors.map((room) => ({
-      raw: 15,
-      room,
-      updated: now(),
-    }));
     this.stream = new StreamListener(deviceId);
     this.stream.onData((data) => {
       this.setData(data);
@@ -104,6 +87,21 @@ class PersonTracker {
 
   async init() {
     await this.inference.loadModel();
+
+    // Get room list from model metadata
+    this.rooms = this.inference.getRooms();
+    console.log(`Model supports ${this.rooms.length} rooms:`, this.rooms);
+
+    // Initialize sensors from model metadata (ensures consistency with training)
+    const sensorOrder = this.inference.getSensorOrder();
+    this.sensors = sensorOrder.map((room) => ({
+      raw: 15,
+      distance: 15,
+      room,
+      updated: now(),
+    }));
+    console.log(`Using ${sensorOrder.length} sensors:`, sensorOrder);
+
     this.ready = true;
   }
 
@@ -115,10 +113,20 @@ class PersonTracker {
       if (config.debug) console.error("Unknown room:", data.room);
       return;
     }
-    this.sensors[idx].raw = data.distance;
-    this.sensors[idx].updated = now();
 
-    let sensorData = this.sensors.map(processStatus);
+    let hasUpdate = false;
+    if (data.raw !== undefined) {
+      this.sensors[idx].raw = data.raw;
+      hasUpdate = true;
+    }
+    if (data.distance !== undefined) {
+      this.sensors[idx].distance = data.distance;
+      hasUpdate = true;
+    }
+
+    if (hasUpdate) {
+      this.sensors[idx].updated = now();
+    }
 
     this.runInference();
   }
@@ -138,13 +146,18 @@ class PersonTracker {
 
     this.emitter.emit("sensor", sensorData);
 
-    let inputData = sensorData.map((s) => s.raw);
+    // Build 14-dimensional input: [value, fresh, value, fresh, ...]
+    let inputData = [];
+    for (const s of sensorData) {
+      inputData.push(s.value);
+      inputData.push(s.fresh);
+    }
+
     this.inference.predict([inputData]).then((output) => {
       if (config.debug) console.log("Inference result:", output);
 
-      let sum = output.reduce((acc, val) => acc + val, 0);
       let sensorOutput = Array.from(output).map((val, idx) => ({
-        room: rooms[idx],
+        room: this.inference.getRoom(idx),
         idx: idx,
         value: val,
       }));
@@ -205,13 +218,16 @@ class PersonTracker {
 
       const formattedStatus = status.map((s) => {
         return `${formatColumn(s.room, 12)} | ${formatColumn(
-          s.raw.toString(),
-          5
+          s.raw.toFixed(2),
+          6
+        )} | ${formatColumn(s.distance.toFixed(2), 6)} | ${formatColumn(
+          s.value.toFixed(2),
+          6
         )} | ${formatColumn(s.ago.toString(), 5)}`;
       });
 
-      console.log("Room         | Dist  | Ago  ");
-      console.log("-------------|-------|------");
+      console.log("Room         | Raw    | Dist   | Value  | Ago  ");
+      console.log("-------------|--------|--------|--------|------");
       formattedStatus.forEach((line) => console.log(line));
     }
   }

@@ -1,4 +1,5 @@
 const { now } = require("./utils");
+const config = require("./config");
 
 const fs = require("fs");
 const path = require("path");
@@ -58,10 +59,25 @@ class TrainingData {
       console.log("No target set. Skip data");
       return;
     }
+
+    // Bygg vektor basert på sensorOrder: [value1, fresh1, value2, fresh2, ...]
+    const vector = [];
+    for (const sensorName of config.sensorOrder) {
+      const sensor = sensordata.find((s) => s.room === sensorName);
+      if (sensor) {
+        vector.push(sensor.value);
+        vector.push(sensor.fresh);
+      } else {
+        vector.push(10);  // default value for manglende sensor
+        vector.push(0);   // ikke fresh
+      }
+    }
+
     this.dataqueue.push({
       time: now(),
       target: this.room,
       data: sensordata,
+      vector: vector,
     });
     console.log("Data added to queue.", sensordata);
   }
