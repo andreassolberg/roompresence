@@ -74,16 +74,31 @@ if [ "$NGROK_MODE" = true ]; then
     NGROK_PID=$!
 
     # Give ngrok time to start and fetch the URL
-    sleep 2
+    sleep 3
 
-    # Extract and display the tunnel URL (BSD grep compatible)
-    TUNNEL_URL=$(grep -o 'url=https://[^ ]*' /tmp/ngrok.log 2>/dev/null | head -1 | cut -d'=' -f2 || echo "")
-    if [ ! -z "$TUNNEL_URL" ]; then
-        echo "Ngrok tunnel: $TUNNEL_URL"
+    # Check for authentication errors
+    if grep -q "authentication failed" /tmp/ngrok.log 2>/dev/null; then
+        echo ""
+        echo "ERROR: Ngrok requires authentication"
+        echo "1. Sign up: https://dashboard.ngrok.com/signup"
+        echo "2. Get authtoken: https://dashboard.ngrok.com/get-started/your-authtoken"
+        echo "3. Install token: ngrok config add-authtoken YOUR_TOKEN"
+        echo ""
+        kill $NGROK_PID 2>/dev/null || true
+        NGROK_PID=""
     else
-        echo "Ngrok starting... Check http://localhost:4040 for tunnel status"
+        # Extract and display the tunnel URL
+        # Try multiple patterns to find the URL
+        TUNNEL_URL=$(grep -Eo 'https://[a-z0-9-]+\.ngrok[^" ]*' /tmp/ngrok.log 2>/dev/null | head -1 || echo "")
+
+        if [ ! -z "$TUNNEL_URL" ]; then
+            echo "Ngrok tunnel: $TUNNEL_URL"
+            echo ""
+        else
+            echo "Ngrok starting... Check http://localhost:4040 for tunnel status"
+            echo ""
+        fi
     fi
-    echo ""
 fi
 
 docker run --rm -it \
