@@ -6,6 +6,7 @@ yarn-error.log*
 
 # Configuration files with credentials
 app/etc/config.json
+etc/config.json
 
 # Training data and models (runtime)
 app/data/
