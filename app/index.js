@@ -16,8 +16,8 @@ let trackers = {};
 (async () => {
   try {
     for (const person of config.people) {
-      console.log("Creating tracker for ", person.name);
-      trackers[person.id] = new PersonTracker(person.device, person.id);
+      console.log("Creating tracker for ", person.name, "with", person.devices.length, "device(s)");
+      trackers[person.id] = new PersonTracker(person.devices, person.id);
       await trackers[person.id].init();
 
       if (person.id === config.uiPersonId) {
@@ -55,6 +55,14 @@ apiRouter.get("/rooms", (req, res) => {
     return res.status(404).json({ error: `Tracker not found for person: ${personId}` });
   }
   res.json(trackers[personId].rooms);
+});
+
+apiRouter.get("/devices", (req, res) => {
+  const personId = req.query.person || config.uiPersonId;
+  if (!trackers[personId]) {
+    return res.status(404).json({ error: `Tracker not found for person: ${personId}` });
+  }
+  res.json(trackers[personId].getDeviceStatus());
 });
 
 apiRouter.post("/room", (req, res) => {

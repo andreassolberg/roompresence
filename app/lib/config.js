@@ -29,6 +29,20 @@ try {
     throw new Error("rooms must be defined in config.json");
   }
 
+  // Normalize device config: support both 'device' (string) and 'devices' (array)
+  if (config.people) {
+    for (const person of config.people) {
+      if (person.device && !person.devices) {
+        // Migrate legacy single-device config to array format
+        person.devices = [person.device];
+        console.log(`Migrated ${person.id} from single device to devices array`);
+      }
+      if (!person.devices || person.devices.length === 0) {
+        throw new Error(`Person ${person.id} must have at least one device`);
+      }
+    }
+  }
+
   console.log(`Config loaded successfully`);
 } catch (err) {
   console.error("Failed to load configuration file:", err.message);

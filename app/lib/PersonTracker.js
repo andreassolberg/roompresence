@@ -24,9 +24,11 @@ const processStatus = (status) => {
   delete s.updated;
   return s;
 };
+
 class PersonTracker {
-  constructor(deviceId, personId) {
+  constructor(devices, personId) {
     this.personId = personId;
+    this.devices = Array.isArray(devices) ? devices : [devices]; // Support single device for backward compat
     this.room = null;
     this.room5 = null;
     this.room15 = null;
@@ -39,17 +41,13 @@ class PersonTracker {
 
     this.inference = new RoomPresenceInference();
     this.ready = false;
-    this.sensors = null; // Will be initialized from model metadata
 
-    this.stream = new StreamListener(deviceId);
-    this.stream.onData((data) => {
-      this.setData(data);
-    });
+    // Multi-device state tracking
+    this.deviceStates = {}; // { deviceId: { stream, sensors, lastUpdate } }
+    this.activeDevice = null;
 
     setInterval(() => {
-      // console.log("Tick ", now() - this.inferenceRun);
       if (now() - this.inferenceRun > 5) {
-        // console.log("Run inference because it is 5 sec since last time.");
         this.runInference();
       }
     }, 1500);
@@ -57,6 +55,68 @@ class PersonTracker {
 
   onSensorData(callback) {
     this.emitter.on("sensor", callback);
+  }
+
+  initializeDevices() {
+    const sensorOrder = this.inference.getSensorOrder();
+
+    for (const deviceId of this.devices) {
+      // Create sensor array for this device
+      const sensors = sensorOrder.map((room) => ({
+        raw: 15,
+        distance: 15,
+        room,
+        updated: now(),
+      }));
+
+      // Create StreamListener for this device
+      const stream = new StreamListener(deviceId);
+      stream.onData((data) => {
+        this.setData(deviceId, data);
+      });
+
+      this.deviceStates[deviceId] = {
+        stream,
+        sensors,
+        lastUpdate: 0, // No data received yet
+      };
+
+      console.log(`  - Device: ${deviceId}`);
+    }
+
+    // Set first device as initially active
+    this.activeDevice = this.devices[0];
+    console.log(`  Active device: ${this.activeDevice}`);
+  }
+
+  updateActiveDevice() {
+    const currentTime = now();
+    const currentState = this.deviceStates[this.activeDevice];
+    const currentAge = currentState.lastUpdate === 0 ? Infinity : currentTime - currentState.lastUpdate;
+
+    // Find the device with the most recent data
+    let freshestDevice = this.activeDevice;
+    let freshestAge = currentAge;
+
+    for (const [deviceId, state] of Object.entries(this.deviceStates)) {
+      // Treat devices that never received data as infinitely old
+      const age = state.lastUpdate === 0 ? Infinity : currentTime - state.lastUpdate;
+      if (age < freshestAge) {
+        freshestDevice = deviceId;
+        freshestAge = age;
+      }
+    }
+
+    // Switch if another device is 10+ seconds more up-to-date
+    if (freshestDevice !== this.activeDevice && freshestAge !== Infinity) {
+      const timeDiff = currentAge - freshestAge;
+      if (timeDiff >= 10 || currentAge === Infinity) {
+        console.log(
+          `Switching active device: ${this.activeDevice} -> ${freshestDevice} (${currentAge === Infinity ? 'current never received data' : timeDiff + 's fresher'})`
+        );
+        this.activeDevice = freshestDevice;
+      }
+    }
   }
 
   setRoom(room) {
@@ -77,10 +137,13 @@ class PersonTracker {
       }
     }
     if (config.publish && updated) {
-      this.stream.sendMessage(this.personId, {
+      // Use active device's stream for publishing
+      const activeState = this.deviceStates[this.activeDevice];
+      activeState.stream.sendMessage(this.personId, {
         room: this.room,
         room5: this.room5,
         room15: this.room15,
+        activeDevice: this.activeDevice,
       });
     }
   }
@@ -92,23 +155,25 @@ class PersonTracker {
     this.rooms = this.inference.getRooms();
     console.log(`Model supports ${this.rooms.length} rooms:`, this.rooms);
 
-    // Initialize sensors from model metadata (ensures consistency with training)
+    // Initialize devices (creates StreamListeners and sensor arrays)
     const sensorOrder = this.inference.getSensorOrder();
-    this.sensors = sensorOrder.map((room) => ({
-      raw: 15,
-      distance: 15,
-      room,
-      updated: now(),
-    }));
     console.log(`Using ${sensorOrder.length} sensors:`, sensorOrder);
+    console.log(`Initializing ${this.devices.length} device(s) for ${this.personId}:`);
+    this.initializeDevices();
 
     this.ready = true;
   }
 
-  setData(data) {
-    if (config.debug) console.log("Data received:", data);
+  setData(deviceId, data) {
+    if (config.debug) console.log(`Data from ${deviceId}:`, data);
 
-    let idx = this.sensors.findIndex((s) => s.room === data.room);
+    const deviceState = this.deviceStates[deviceId];
+    if (!deviceState) {
+      console.error("Unknown device:", deviceId);
+      return;
+    }
+
+    let idx = deviceState.sensors.findIndex((s) => s.room === data.room);
     if (idx === -1) {
       if (config.debug) console.error("Unknown room:", data.room);
       return;
@@ -116,23 +181,44 @@ class PersonTracker {
 
     let hasUpdate = false;
     if (data.raw !== undefined) {
-      this.sensors[idx].raw = data.raw;
+      deviceState.sensors[idx].raw = data.raw;
       hasUpdate = true;
     }
     if (data.distance !== undefined) {
-      this.sensors[idx].distance = data.distance;
+      deviceState.sensors[idx].distance = data.distance;
       hasUpdate = true;
     }
 
     if (hasUpdate) {
-      this.sensors[idx].updated = now();
+      deviceState.sensors[idx].updated = now();
+      deviceState.lastUpdate = now();
     }
+
+    // Check if we should switch active device
+    this.updateActiveDevice();
 
     this.runInference();
   }
 
   getSensordataProcessed() {
-    return this.sensors.map(processStatus);
+    // Return sensor data from active device only
+    const activeState = this.deviceStates[this.activeDevice];
+    return activeState.sensors.map(processStatus);
+  }
+
+  getDeviceStatus() {
+    const status = {};
+    for (const [deviceId, state] of Object.entries(this.deviceStates)) {
+      status[deviceId] = {
+        lastUpdate: state.lastUpdate,
+        age: now() - state.lastUpdate,
+        isActive: deviceId === this.activeDevice,
+      };
+    }
+    return {
+      activeDevice: this.activeDevice,
+      devices: status,
+    };
   }
 
   runInference() {
@@ -142,7 +228,9 @@ class PersonTracker {
     }
     this.inferenceRun = now();
 
-    let sensorData = this.sensors.map(processStatus);
+    // Use only active device's sensor data
+    const activeState = this.deviceStates[this.activeDevice];
+    let sensorData = activeState.sensors.map(processStatus);
 
     this.emitter.emit("sensor", sensorData);
 
@@ -208,7 +296,17 @@ class PersonTracker {
 
   debugState() {
     if (config.debug) {
-      let status = this.sensors.map(processStatus);
+      // Show active device info
+      console.log(`Active device: ${this.activeDevice}`);
+      for (const [deviceId, state] of Object.entries(this.deviceStates)) {
+        const age = now() - state.lastUpdate;
+        const marker = deviceId === this.activeDevice ? " [ACTIVE]" : "";
+        console.log(`  ${deviceId}: ${age}s ago${marker}`);
+      }
+
+      // Show sensor table for active device
+      const activeState = this.deviceStates[this.activeDevice];
+      let status = activeState.sensors.map(processStatus);
 
       const formatColumn = (str, width) => {
         return str.length > width
