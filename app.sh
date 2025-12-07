@@ -76,8 +76,8 @@ if [ "$NGROK_MODE" = true ]; then
     # Give ngrok time to start and fetch the URL
     sleep 2
 
-    # Extract and display the tunnel URL
-    TUNNEL_URL=$(grep -oP 'url=https://[^\s]+' /tmp/ngrok.log | head -1 | cut -d'=' -f2 || echo "")
+    # Extract and display the tunnel URL (BSD grep compatible)
+    TUNNEL_URL=$(grep -o 'url=https://[^ ]*' /tmp/ngrok.log 2>/dev/null | head -1 | cut -d'=' -f2 || echo "")
     if [ ! -z "$TUNNEL_URL" ]; then
         echo "Ngrok tunnel: $TUNNEL_URL"
     else
