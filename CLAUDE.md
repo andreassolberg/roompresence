@@ -14,8 +14,7 @@ Roomer is a room presence detection system that uses Bluetooth proximity sensors
 
 ### Run the app (Docker)
 ```bash
-./app.sh         # Production: models baked into image
-./app.sh --dev   # Development: mount local models directory
+./app.sh         # Runs with local models directory mounted
 ```
 Runs the Express server on port 8080 in Docker, serving the web interface and REST API.
 

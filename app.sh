@@ -1,8 +1,7 @@
 #!/bin/bash
 # Start roompresence web app in Docker
 #
-# Usage: ./app.sh [--dev] [--ngrok]
-#   --dev      Mount local models directory (for development/testing new models)
+# Usage: ./app.sh [--ngrok]
 #   --ngrok    Expose port 8080 via ngrok tunnel for external access
 
 set -e
@@ -11,22 +10,17 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$PROJECT_ROOT/app"
 
 # Parse options
-DEV_MODE=false
 NGROK_MODE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --dev)
-            DEV_MODE=true
-            shift
-            ;;
         --ngrok)
             NGROK_MODE=true
             shift
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: ./app.sh [--dev] [--ngrok]"
+            echo "Usage: ./app.sh [--ngrok]"
             exit 1
             ;;
     esac
@@ -40,12 +34,6 @@ echo "Starting roompresence app..."
 echo "Web UI: http://localhost:8080"
 echo ""
 
-# Models are built into image, but can be overridden with --dev flag
-EXTRA_MOUNTS=""
-if [ "$DEV_MODE" = true ]; then
-    echo "Dev mode: mounting local models directory"
-    EXTRA_MOUNTS="-v $APP_DIR/models:/app/models:ro"
-fi
 
 # Setup cleanup on exit
 cleanup() {
@@ -105,5 +93,5 @@ docker run --rm -it \
     -p 8080:8080 \
     -v "$APP_DIR/etc:/app/etc:ro" \
     -v "$APP_DIR/data:/app/data" \
-    $EXTRA_MOUNTS \
+    -v "$APP_DIR/models:/app/models:ro" \
     roompresence-app
