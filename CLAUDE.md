@@ -12,15 +12,29 @@ Roomer is a room presence detection system that uses Bluetooth proximity sensors
 
 ## Development Commands
 
-### Start the server
+### Run the app (Docker)
 ```bash
-npm start
+./app.sh         # Production: models baked into image
+./app.sh --dev   # Development: mount local models directory
 ```
-Runs the Express server on port 8080, which serves the web interface and REST API.
+Runs the Express server on port 8080 in Docker, serving the web interface and REST API.
 
-### Install dependencies
+### Train a model
 ```bash
-npm install
+./train.sh <dataset_name> --model xgb   # Train XGBoost model
+./train.sh <dataset_name> --model all   # Train all model types
+```
+Training data goes in `build_model/data/<dataset_name>/`, output to `build_model/output/<dataset_name>/`.
+
+### Deploy a model
+```bash
+./deploy.sh <dataset_name>
+```
+Copies trained model from `build_model/output/` to `app/models/`.
+
+### Local development (without Docker)
+```bash
+cd app && npm install && npm start
 ```
 
 ## Architecture
@@ -48,9 +62,9 @@ npm install
 - Can publish presence updates back to MQTT
 
 **lib/RoomPresenceInference.js** - ML inference engine
-- Loads ONNX model from `models/roompresense-bob.onnx`
-- Accepts flat array of 7 distance values
-- Returns probability distribution across 13 rooms
+- Loads ONNX model from `models/model.onnx` and metadata from `models/metadata.json`
+- Accepts flat array of sensor values (distance + freshness pairs)
+- Returns probability distribution across rooms defined in metadata
 
 **lib/TrainingData.js** - Training data collector
 - Collects sensor snapshots with room labels
@@ -77,8 +91,8 @@ Static HTML/JS served from `public/` directory. Used to label training data by c
 
 ## Important Notes
 
-- The system is hardcoded for specific rooms/sensors - changes require updating room/sensor arrays in PersonTracker.js
+- Rooms and sensors are defined in model metadata (`models/metadata.json`) which is generated during training
 - Sensor staleness threshold is 20 seconds; readings are replaced with 15 (max distance) when stale
-- ONNX model path defaults to `./models/roompresense-bob.onnx` but can be overridden
+- ONNX model path defaults to `./models/model.onnx`
 - Training data collection and web UI display are controlled by the `uiPersonId` config setting
-- Config file contains MQTT credentials - ensure it's not committed to version control
+- Config file (`etc/config.json`) contains MQTT credentials - ensure it's not committed to version control
