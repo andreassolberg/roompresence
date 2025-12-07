@@ -14,7 +14,10 @@ Roomer is a room presence detection system that uses Bluetooth proximity sensors
 
 ### Run the app (Docker)
 ```bash
-./app.sh         # Runs with local models directory mounted
+./app.sh              # Normal mode: inference only
+./app.sh --train      # Training mode: enable data collection UI
+./app.sh --ngrok      # Expose via ngrok tunnel
+./app.sh --train --ngrok  # Training mode with external access
 ```
 Runs the Express server on port 8080 in Docker, serving the web interface and REST API.
 
@@ -78,20 +81,22 @@ Config is loaded from `etc/config.json` with:
 - MQTT broker URL and credentials
 - List of people with device IDs (Bluetooth device names)
 - `uiPersonId` (optional) - Person ID to display in web UI and collect training data for (defaults to first person in list)
-- Feature flags: `publish` (send to MQTT), `track` (collect training data), `debug` (verbose logging)
+- Feature flags: `publish` (send to MQTT), `debug` (verbose logging)
 
 ### REST API
+- `GET /api/status` - Returns training status and current UI person ID
 - `GET /api/sensors` - Returns current processed sensor data for the person specified by `uiPersonId` in config
 - `GET /api/rooms` - Returns list of valid room names
-- `POST /api/room` - Sets current room label for training data collection
+- `POST /api/room` - Sets current room label for training data collection (only available in training mode)
 
 ### Web Interface
-Static HTML/JS served from `public/` directory. Used to label training data by clicking room buttons while sensor data is collected.
+Static HTML/JS served from `public/` directory. Displays real-time sensor data for the person specified by `uiPersonId`. When training mode is enabled (via `--train` flag), provides room selection buttons for labeling training data.
 
 ## Important Notes
 
 - Rooms and sensors are defined in model metadata (`models/metadata.json`) which is generated during training
 - Sensor staleness threshold is 20 seconds; readings are replaced with 15 (max distance) when stale
 - ONNX model path defaults to `./models/model.onnx`
-- Training data collection and web UI display are controlled by the `uiPersonId` config setting
+- Training data collection is enabled via `--train` flag; web UI displays sensor data for the person specified by `uiPersonId`
+- Training mode must be enabled at container startup; cannot be toggled at runtime
 - Config file (`etc/config.json`) contains MQTT credentials - ensure it's not committed to version control

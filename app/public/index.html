@@ -30,13 +30,44 @@
       button:hover {
         background-color: #0056b3;
       }
+
+      h1 {
+        color: #333;
+        margin-top: 0;
+      }
+
+      h2 {
+        color: #555;
+        font-size: 20px;
+        margin-top: 20px;
+        margin-bottom: 10px;
+      }
+
+      code {
+        background: #f5f5f5;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: monospace;
+      }
     </style>
-    <title>Presence – training data</title>
+    <title>Room Presence Monitor</title>
   </head>
   <body>
-    <div>Target: <span id="target"></span></div>
-    <div id="btns"></div>
-    <p>Click on the buttons to record training data.</p>
+    <h1>Room Presence Monitor</h1>
+    <div style="background: #e3f2fd; padding: 10px; margin-bottom: 20px; border-radius: 5px;">
+      <strong>Tracking:</strong> <span id="person-id"></span>
+    </div>
+    <div id="training-section">
+      <h2>Training Mode</h2>
+      <div>Target Room: <span id="target"></span></div>
+      <div id="btns"></div>
+      <p id="training-instructions">Click on the buttons to record training data.</p>
+    </div>
+    <div id="training-disabled" style="display: none; background: #fff3cd; padding: 15px; margin-bottom: 20px; border-radius: 5px;">
+      <strong>Training mode is disabled.</strong>
+      <p>To enable training data collection, restart the application with the <code>--train</code> flag.</p>
+    </div>
+    <h2>Sensor Data</h2>
     <pre id="sensordata"></pre>
   </body>
 </html>

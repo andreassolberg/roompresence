@@ -1,7 +1,8 @@
 #!/bin/bash
 # Start roompresence web app in Docker
 #
-# Usage: ./app.sh [--ngrok]
+# Usage: ./app.sh [--train] [--ngrok]
+#   --train    Enable training data collection mode
 #   --ngrok    Expose port 8080 via ngrok tunnel for external access
 
 set -e
@@ -10,17 +11,22 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$PROJECT_ROOT/app"
 
 # Parse options
+TRAIN_MODE=false
 NGROK_MODE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --train)
+            TRAIN_MODE=true
+            shift
+            ;;
         --ngrok)
             NGROK_MODE=true
             shift
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: ./app.sh [--ngrok]"
+            echo "Usage: ./app.sh [--train] [--ngrok]"
             exit 1
             ;;
     esac
@@ -34,6 +40,15 @@ echo "Starting roompresence app..."
 echo "Web UI: http://localhost:8080"
 echo ""
 
+# Build environment variable arguments
+ENV_ARGS=""
+if [ "$TRAIN_MODE" = true ]; then
+    ENV_ARGS="-e TRAIN_MODE=true"
+    echo "Training mode: ENABLED"
+else
+    echo "Training mode: disabled"
+fi
+echo ""
 
 # Setup cleanup on exit
 cleanup() {
@@ -91,6 +106,7 @@ fi
 
 docker run --rm -it \
     -p 8080:8080 \
+    $ENV_ARGS \
     -v "$APP_DIR/etc:/app/etc:ro" \
     -v "$APP_DIR/data:/app/data" \
     -v "$APP_DIR/models:/app/models:ro" \

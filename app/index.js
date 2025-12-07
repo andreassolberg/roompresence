@@ -9,8 +9,13 @@ console.log("Loaded express and path");
 
 const TrainingData = require("./lib/TrainingData");
 console.log("Loaded TrainingData");
-const train = new TrainingData();
-console.log("Created TrainingData instance");
+const trainingMode = process.env.TRAIN_MODE === 'true';
+console.log(`Training mode: ${trainingMode}`);
+let train = null;
+if (trainingMode) {
+  train = new TrainingData();
+  console.log("Created TrainingData instance");
+}
 
 let trackers = {};
 (async () => {
@@ -21,7 +26,7 @@ let trackers = {};
       await trackers[person.id].init();
 
       if (person.id === config.uiPersonId) {
-        if (config.track) {
+        if (trainingMode) {
           console.log(`Enable tracking of data for ${person.id}`);
           trackers[person.id].onSensorData((data) => {
             train.addData(data);
@@ -65,15 +70,28 @@ apiRouter.get("/devices", (req, res) => {
   res.json(trackers[personId].getDeviceStatus());
 });
 
-apiRouter.post("/room", (req, res) => {
-  const room = req.body;
-  if (typeof room.room === "string") {
-    train.setRoom(room.room);
-    res.status(200).send("Room updated successfully");
-  } else {
-    res.status(400).send("Invalid room data: " + typeof room);
-  }
+apiRouter.get("/status", (req, res) => {
+  res.json({
+    trainingEnabled: trainingMode,
+    personId: config.uiPersonId
+  });
 });
+
+if (trainingMode) {
+  apiRouter.post("/room", (req, res) => {
+    const room = req.body;
+    if (typeof room.room === "string") {
+      train.setRoom(room.room);
+      res.status(200).send("Room updated successfully");
+    } else {
+      res.status(400).send("Invalid room data: " + typeof room);
+    }
+  });
+} else {
+  apiRouter.post("/room", (req, res) => {
+    res.status(403).json({ error: "Training mode is disabled" });
+  });
+}
 
 app.use("/api", apiRouter);
 
@@ -87,7 +105,9 @@ process.on('SIGINT', async () => {
   if (isShuttingDown) return;
   isShuttingDown = true;
   console.log('\nShutting down gracefully...');
-  await train.processData();
-  console.log('Training data saved. Goodbye!');
+  if (trainingMode && train) {
+    await train.processData();
+    console.log('Training data saved. Goodbye!');
+  }
   process.exit(0);
 });

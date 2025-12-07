@@ -1,3 +1,37 @@
+async function fetchStatus() {
+  try {
+    const response = await fetch("/api/status");
+    const status = await response.json();
+    return status;
+  } catch (error) {
+    console.error("Error fetching status:", error);
+    return null;
+  }
+}
+
+async function initializeUI() {
+  const status = await fetchStatus();
+
+  if (!status) {
+    console.error("Failed to load application status");
+    return;
+  }
+
+  // Display person ID
+  const personIdElement = document.querySelector("#person-id");
+  personIdElement.textContent = status.personId;
+
+  // Show/hide training UI based on status
+  if (status.trainingEnabled) {
+    document.querySelector("#training-section").style.display = "block";
+    document.querySelector("#training-disabled").style.display = "none";
+    await fetchRooms();
+  } else {
+    document.querySelector("#training-section").style.display = "none";
+    document.querySelector("#training-disabled").style.display = "block";
+  }
+}
+
 async function fetchRooms() {
   try {
     const response = await fetch("/api/rooms");
@@ -34,9 +68,17 @@ function setRoom(room) {
     },
     body: JSON.stringify({ room }),
   })
-    .then((response) => response.json())
+    .then((response) => {
+      if (response.status === 403) {
+        alert("Training mode is disabled");
+        return null;
+      }
+      return response.json();
+    })
     .then((data) => {
-      console.log("Room set successfully:", data);
+      if (data) {
+        console.log("Room set successfully:", data);
+      }
     })
     .catch((error) => {
       console.error("Error setting room:", error);
@@ -54,9 +96,8 @@ async function fetchSensordata() {
   }
 }
 
+initializeUI();
 setInterval(fetchSensordata, 1000);
-
-fetchRooms();
 
 document.addEventListener("DOMContentLoaded", function () {
   console.log("Page loaded");
