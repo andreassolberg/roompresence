@@ -1,4 +1,6 @@
-# Room Presence Model Training
+# Room Presence
+
+A room presence detection system using Bluetooth distance measurements from [ESPresense](https://espresense.com) sensors. The system consists of three parts: a web app for collecting training data by labeling which room you're in, tools for training machine learning models on the data, and an inference engine that runs the model in real-time and publishes person-to-room mappings to MQTT for home automation.
 
 ## Quick Start
 
