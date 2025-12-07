@@ -27,6 +27,9 @@ if [ ! -f "$OUTPUT_DIR/model_xgb.onnx" ]; then
     exit 1
 fi
 
+# Create models directory if it doesn't exist
+mkdir -p "$MODELS_DIR"
+
 cp "$OUTPUT_DIR/model_xgb.onnx" "$MODELS_DIR/model.onnx"
 cp "$OUTPUT_DIR/metadata.json" "$MODELS_DIR/metadata.json"
 
