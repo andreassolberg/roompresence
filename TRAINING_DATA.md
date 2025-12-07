@@ -87,8 +87,8 @@ Systemet gjenkjenner 13 rom:
 | 4 | kjellerstua |
 | 5 | kjokken |
 | 6 | kontor |
-| 7 | linnea |
-| 8 | linus |
+| 7 | children1 |
+| 8 | children2 |
 | 9 | mb |
 | 10 | stua |
 | 11 | ute |
@@ -125,7 +125,7 @@ Fresh-flagget er kritisk informasjon. Det forteller modellen hvilke sensorer som
 
 ### 4. Rom uten sensorer
 
-Noen rom (gang, gjesterom, kjellergang, linnea, linus, ute) har ingen dedikert sensor. Modellen må lære å gjenkjenne disse basert på:
+Noen rom (gang, gjesterom, kjellergang, children1, children2, ute) har ingen dedikert sensor. Modellen må lære å gjenkjenne disse basert på:
 - Kombinasjon av avstander til nærliggende sensorer
 - Mønsteret av "ingen nær sensor" (alle verdier middels/høye)
 
@@ -190,8 +190,8 @@ def load_training_data(data_dir='data/'):
     X, y = [], []
     room_to_idx = {
         'bad': 0, 'gang': 1, 'gjesterom': 2, 'kjellergang': 3,
-        'kjellerstua': 4, 'kjokken': 5, 'kontor': 6, 'linnea': 7,
-        'linus': 8, 'mb': 9, 'stua': 10, 'ute': 11, 'vaskerom': 12
+        'kjellerstua': 4, 'kjokken': 5, 'kontor': 6, 'children1': 7,
+        'children2': 8, 'mb': 9, 'stua': 10, 'ute': 11, 'vaskerom': 12
     }
 
     for filepath in glob.glob(f'{data_dir}/*.json'):

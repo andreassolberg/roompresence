@@ -58,7 +58,7 @@ npm install
 - Used via web interface to build training datasets
 
 ### Rooms
-The system recognizes 13 rooms: bad, gang, gjesterom, kjellergang, kjellerstua, kjokken, kontor, linnea, linus, mb, stua, ute, vaskerom
+The system recognizes 13 rooms: bad, gang, gjesterom, kjellergang, kjellerstua, kjokken, kontor, children1, children2, mb, stua, ute, vaskerom
 
 ### Configuration
 Config is loaded from `etc/config.json` with:
