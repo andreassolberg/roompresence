@@ -4,7 +4,16 @@ A room presence detection system using Bluetooth distance measurements from [ESP
 
 ## Quick Start
 
-### 1. Collect Training Data
+### 1. Configure
+
+Copy the example config and edit with your MQTT broker and device IDs:
+
+```bash
+cp app/etc/config.example.json app/etc/config.json
+# Edit app/etc/config.json with your settings
+```
+
+### 2. Collect Training Data
 
 Start the app and use the web UI to label rooms:
 
@@ -15,14 +24,14 @@ Start the app and use the web UI to label rooms:
 
 Data saves to `app/data/` every 2 minutes.
 
-### 2. Create Dataset
+### 3. Create Dataset
 
 ```bash
 mkdir -p build_model/data/mydata
 cp app/data/*.json build_model/data/mydata/
 ```
 
-### 3. Train Model
+### 4. Train Model
 
 ```bash
 ./train.sh mydata --model xgb
@@ -30,13 +39,13 @@ cp app/data/*.json build_model/data/mydata/
 
 Output: `build_model/output/mydata/`
 
-### 4. Deploy Model
+### 5. Deploy Model
 
 ```bash
 ./deploy.sh mydata
 ```
 
-### 5. Run Inference
+### 6. Run Inference
 
 ```bash
 ./app.sh
