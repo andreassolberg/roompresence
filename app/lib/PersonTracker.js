@@ -91,15 +91,34 @@ class PersonTracker {
 
   updateActiveDevice() {
     const currentTime = now();
+    const primaryDevice = this.devices[0];
+    const primaryState = this.deviceStates[primaryDevice];
+    const primaryAge = primaryState.lastUpdate === 0 ? Infinity : currentTime - primaryState.lastUpdate;
+    const primaryIsFresh = primaryAge < 10;
+
+    // If primary device has fresh data, always use it
+    if (primaryIsFresh && this.activeDevice !== primaryDevice) {
+      console.log(
+        `Switching to primary device: ${this.activeDevice} -> ${primaryDevice} (primary has fresh data)`
+      );
+      this.activeDevice = primaryDevice;
+      this.publishState();
+      return;
+    }
+
+    // If primary is active and fresh, stay with it
+    if (this.activeDevice === primaryDevice && primaryIsFresh) {
+      return;
+    }
+
+    // Primary is stale - find freshest secondary device
     const currentState = this.deviceStates[this.activeDevice];
     const currentAge = currentState.lastUpdate === 0 ? Infinity : currentTime - currentState.lastUpdate;
 
-    // Find the device with the most recent data
     let freshestDevice = this.activeDevice;
     let freshestAge = currentAge;
 
     for (const [deviceId, state] of Object.entries(this.deviceStates)) {
-      // Treat devices that never received data as infinitely old
       const age = state.lastUpdate === 0 ? Infinity : currentTime - state.lastUpdate;
       if (age < freshestAge) {
         freshestDevice = deviceId;
@@ -107,7 +126,7 @@ class PersonTracker {
       }
     }
 
-    // Switch if another device is 10+ seconds more up-to-date
+    // Switch to fresher device if current is 10+ seconds staler
     if (freshestDevice !== this.activeDevice && freshestAge !== Infinity) {
       const timeDiff = currentAge - freshestAge;
       if (timeDiff >= 10 || currentAge === Infinity) {
@@ -115,7 +134,7 @@ class PersonTracker {
           `Switching active device: ${this.activeDevice} -> ${freshestDevice} (${currentAge === Infinity ? 'current never received data' : timeDiff + 's fresher'})`
         );
         this.activeDevice = freshestDevice;
-        this.publishState(); // Publish when active device changes
+        this.publishState();
       }
     }
   }
