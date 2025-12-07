@@ -115,7 +115,20 @@ class PersonTracker {
           `Switching active device: ${this.activeDevice} -> ${freshestDevice} (${currentAge === Infinity ? 'current never received data' : timeDiff + 's fresher'})`
         );
         this.activeDevice = freshestDevice;
+        this.publishState(); // Publish when active device changes
       }
+    }
+  }
+
+  publishState() {
+    if (config.publish && this.room) {
+      const activeState = this.deviceStates[this.activeDevice];
+      activeState.stream.sendMessage(this.personId, {
+        room: this.room,
+        room5: this.room5,
+        room15: this.room15,
+        activeDevice: this.activeDevice,
+      });
     }
   }
 
@@ -136,15 +149,8 @@ class PersonTracker {
         updated = true;
       }
     }
-    if (config.publish && updated) {
-      // Use active device's stream for publishing
-      const activeState = this.deviceStates[this.activeDevice];
-      activeState.stream.sendMessage(this.personId, {
-        room: this.room,
-        room5: this.room5,
-        room15: this.room15,
-        activeDevice: this.activeDevice,
-      });
+    if (updated) {
+      this.publishState();
     }
   }
 
