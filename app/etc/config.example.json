@@ -1,0 +1,47 @@
+{
+  "rooms": [
+    "bad",
+    "gang",
+    "gjesterom",
+    "kjellergang",
+    "kjellerstua",
+    "kjokken",
+    "kontor",
+    "children1",
+    "children2",
+    "mb",
+    "stua",
+    "ute",
+    "vaskerom"
+  ],
+  "sensorOrder": [
+    "bad",
+    "vaskerom",
+    "mb",
+    "kjellerstua",
+    "kjokken",
+    "kontor",
+    "stua"
+  ],
+  "mqtt": {
+    "brokerUrl": "mqtt://your-mqtt-broker:1883",
+    "username": "your-username",
+    "password": "your-password"
+  },
+  "publish": true,
+  "track": true,
+  "people": [
+    {
+      "name": "Person1",
+      "devices": ["phone:device-id-1", "watch:device-id-2"],
+      "id": "person1"
+    },
+    {
+      "name": "Person2",
+      "devices": ["phone:device-id-3"],
+      "id": "person2"
+    }
+  ],
+  "debug": false,
+  "uiPersonId": "person1"
+}
