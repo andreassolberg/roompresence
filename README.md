@@ -59,6 +59,8 @@ Output: `build_model/output/mydata/`
 ./app.sh
 ```
 
+Builds the Docker image (including any code changes) and runs the inference engine. Publishes room presence to MQTT at `espresense/person/{personId}`. The web UI shows real-time sensor data at http://localhost:8080.
+
 ## Model Options
 
 - `--model xgb` - XGBoost (recommended, ~99% accuracy)
