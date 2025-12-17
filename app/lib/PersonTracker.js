@@ -32,6 +32,7 @@ class PersonTracker {
     this.room = null;
     this.room5 = null;
     this.room15 = null;
+    this.room120 = null;
     this.roomSince = now();
     this.rooms = null; // Will be loaded from model metadata
 
@@ -146,6 +147,7 @@ class PersonTracker {
         room: this.room,
         room5: this.room5,
         room15: this.room15,
+        room120: this.room120,
         activeDevice: this.activeDevice,
       });
     }
@@ -165,6 +167,10 @@ class PersonTracker {
       }
       if (since > 15 && this.room15 !== room) {
         this.room15 = room;
+        updated = true;
+      }
+      if (since > 120 && this.room120 !== room) {
+        this.room120 = room;
         updated = true;
       }
     }
@@ -312,9 +318,9 @@ class PersonTracker {
   debugRoom() {
     if (config.debug) {
       console.log(
-        `Room [${this.room}]  since ${now() - this.roomSince}s    2[${
+        `Room [${this.room}]  since ${now() - this.roomSince}s    5s[${
           this.room5
-        }]   3[${this.room15}]`
+        }]   15s[${this.room15}]   120s[${this.room120}]`
       );
     }
   }

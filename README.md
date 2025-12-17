@@ -15,11 +15,19 @@ cp app/etc/config.example.json app/etc/config.json
 
 ### 2. Collect Training Data
 
-Start the app and use the web UI to label rooms:
+Start the app in training mode and use the web UI to label rooms:
 
 ```bash
-./app.sh
+./app.sh --train
 # Open http://localhost:8080 and click room buttons while moving around
+```
+
+This builds the Docker image and runs the container with the web UI on port 8080.
+
+Use `--ngrok` to expose the UI externally (useful for labeling from your phone while walking around):
+
+```bash
+./app.sh --train --ngrok
 ```
 
 Data saves to `app/data/` every 2 minutes.
