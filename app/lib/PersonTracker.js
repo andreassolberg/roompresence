@@ -29,10 +29,10 @@ class PersonTracker {
   constructor(devices, personId) {
     this.personId = personId;
     this.devices = Array.isArray(devices) ? devices : [devices]; // Support single device for backward compat
-    this.room = null;
-    this.room5 = null;
-    this.room15 = null;
-    this.room120 = null;
+    this.room = "na";
+    this.room5 = "na";
+    this.room15 = "na";
+    this.room120 = "na";
     this.roomSince = now();
     this.rooms = null; // Will be loaded from model metadata
 
@@ -140,8 +140,19 @@ class PersonTracker {
     }
   }
 
+  isAllDevicesStale(threshold = 120) {
+    const currentTime = now();
+    for (const state of Object.values(this.deviceStates)) {
+      const age = state.lastUpdate === 0 ? Infinity : currentTime - state.lastUpdate;
+      if (age < threshold) {
+        return false; // Minst én enhet har fersk data
+      }
+    }
+    return true; // Alle enheter er stale
+  }
+
   publishState() {
-    if (config.publish && this.room) {
+    if (config.publish && this.room !== null) {
       const activeState = this.deviceStates[this.activeDevice];
       activeState.stream.sendMessage(this.personId, {
         room: this.room,
@@ -258,6 +269,20 @@ class PersonTracker {
       return;
     }
     this.inferenceRun = now();
+
+    // Sjekk om alle enheter har vært stale i over 120 sekunder
+    if (this.isAllDevicesStale(120)) {
+      if (this.room !== "na") {
+        console.log(`All devices stale for 120s+ – setting room to 'na'`);
+        this.room = "na";
+        this.room5 = "na";
+        this.room15 = "na";
+        this.room120 = "na";
+        this.roomSince = now();
+        this.publishState();
+      }
+      return; // Ikke kjør inference når alle enheter er utilgjengelige
+    }
 
     // Use only active device's sensor data
     const activeState = this.deviceStates[this.activeDevice];
