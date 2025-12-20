@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="index.js" defer></script>
-    <script></script>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -49,13 +49,69 @@
         border-radius: 3px;
         font-family: monospace;
       }
+
+      /* Person selector */
+      #person-select {
+        padding: 8px 12px;
+        font-size: 14px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        margin-left: 10px;
+      }
+
+      /* Tabs */
+      .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 16px;
+      }
+      .tab {
+        background: #e0e0e0;
+        border: none;
+        padding: 8px 16px;
+        cursor: pointer;
+        border-radius: 5px 5px 0 0;
+        font-size: 14px;
+        margin: 0;
+      }
+      .tab:hover {
+        background: #d0d0d0;
+      }
+      .tab.active {
+        background: #007bff;
+        color: white;
+      }
+      .tab-content {
+        display: none;
+        background: white;
+        padding: 16px;
+        border-radius: 0 5px 5px 5px;
+      }
+      .tab-content.active {
+        display: block;
+      }
+
+      /* Charts */
+      .chart-container {
+        width: 100%;
+        max-width: 600px;
+      }
+      .bar-label {
+        font-size: 12px;
+        fill: #333;
+      }
+      .bar-value {
+        font-size: 11px;
+        fill: #666;
+      }
     </style>
     <title>Room Presence Monitor</title>
   </head>
   <body>
     <h1>Room Presence Monitor</h1>
     <div style="background: #e3f2fd; padding: 10px; margin-bottom: 20px; border-radius: 5px;">
-      <strong>Tracking:</strong> <span id="person-id"></span>
+      <strong>Tracking:</strong>
+      <select id="person-select"></select>
     </div>
     <div id="training-section">
       <h2>Training Mode</h2>
@@ -67,7 +123,25 @@
       <strong>Training mode is disabled.</strong>
       <p>To enable training data collection, restart the application with the <code>--train</code> flag.</p>
     </div>
-    <h2>Sensor Data</h2>
-    <pre id="sensordata"></pre>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="raw">Raw Data</button>
+      <button class="tab" data-tab="sensors">Sensors</button>
+      <button class="tab" data-tab="inference">Inference</button>
+    </div>
+
+    <div id="tab-raw" class="tab-content active">
+      <pre id="sensordata"></pre>
+    </div>
+    <div id="tab-sensors" class="tab-content">
+      <div class="chart-container">
+        <svg id="sensors-chart"></svg>
+      </div>
+    </div>
+    <div id="tab-inference" class="tab-content">
+      <div class="chart-container">
+        <svg id="inference-chart"></svg>
+      </div>
+    </div>
   </body>
 </html>

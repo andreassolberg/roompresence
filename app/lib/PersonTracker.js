@@ -42,6 +42,7 @@ class PersonTracker {
 
     this.inference = new RoomPresenceInference();
     this.ready = false;
+    this.lastPredictions = null;
 
     // Multi-device state tracking
     this.deviceStates = {}; // { deviceId: { stream, sensors, lastUpdate } }
@@ -263,6 +264,10 @@ class PersonTracker {
     };
   }
 
+  getPredictions() {
+    return this.lastPredictions;
+  }
+
   runInference() {
     if (!this.ready) {
       console.log("Cannot run inference – waiting for model to load");
@@ -307,6 +312,7 @@ class PersonTracker {
       }));
 
       sensorOutput.sort((a, b) => b.value - a.value);
+      this.lastPredictions = sensorOutput;
       this.setRoom(sensorOutput[0].room);
 
       this.debugRoom();

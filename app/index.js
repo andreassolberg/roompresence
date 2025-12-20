@@ -48,7 +48,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const apiRouter = express.Router();
 apiRouter.get("/sensors", (req, res) => {
-  const personId = config.uiPersonId;
+  const personId = req.query.person || config.uiPersonId;
   if (!trackers[personId]) {
     return res.status(404).json({ error: `Tracker not found for person: ${personId}` });
   }
@@ -68,6 +68,18 @@ apiRouter.get("/devices", (req, res) => {
     return res.status(404).json({ error: `Tracker not found for person: ${personId}` });
   }
   res.json(trackers[personId].getDeviceStatus());
+});
+
+apiRouter.get("/predictions", (req, res) => {
+  const personId = req.query.person || config.uiPersonId;
+  if (!trackers[personId]) {
+    return res.status(404).json({ error: `Tracker not found for person: ${personId}` });
+  }
+  res.json(trackers[personId].getPredictions() || []);
+});
+
+apiRouter.get("/people", (req, res) => {
+  res.json(config.people.map(p => ({ id: p.id, name: p.name })));
 });
 
 apiRouter.get("/status", (req, res) => {
