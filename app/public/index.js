@@ -299,12 +299,13 @@ async function updateData() {
     const data = await fetchSensordata();
     const sensorDataElement = document.querySelector("#sensordata");
     sensorDataElement.textContent = JSON.stringify(data, null, 2);
-  } else if (activeTab === "sensors") {
-    const data = await fetchSensordata();
-    renderSensorsChart(data);
-  } else if (activeTab === "inference") {
-    const data = await fetchPredictions();
-    renderInferenceChart(data);
+  } else if (activeTab === "charts") {
+    const [sensorData, predictions] = await Promise.all([
+      fetchSensordata(),
+      fetchPredictions()
+    ]);
+    renderSensorsChart(sensorData);
+    renderInferenceChart(predictions);
   }
 }
 
