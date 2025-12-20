@@ -146,13 +146,26 @@ function renderSamplesChart(data) {
     .text(d => d.count);
 }
 
-// Render heatmap
+// Kernel Density Estimation
+function kernelDensityEstimator(kernel, X) {
+  return function(V) {
+    return X.map(x => [x, d3.mean(V, v => kernel(x - v))]);
+  };
+}
+
+function kernelEpanechnikov(k) {
+  return function(v) {
+    return Math.abs(v /= k) <= 1 ? 0.75 * (1 - v * v) / k : 0;
+  };
+}
+
+// Render heatmap with violin plots
 function renderHeatmap(data) {
   const svg = d3.select("#heatmap");
   svg.selectAll("*").remove();
 
   const margin = { top: 30, right: 120, bottom: 60, left: 100 };
-  const cellSize = 40;
+  const cellSize = 50;
   const width = data.sensors.length * cellSize;
   const height = data.rooms.length * cellSize;
 
@@ -180,31 +193,98 @@ function renderHeatmap(data) {
     .domain([10, 0]) // Inverted: 0 is darkest, 10 is lightest
     .interpolator(d3.interpolateBlues);
 
-  // Create lookup map for data
+  // Create lookup map for data (including values array)
   const dataMap = new Map();
   data.data.forEach(d => {
-    dataMap.set(`${d.room}-${d.sensor}`, d.value);
+    dataMap.set(`${d.room}-${d.sensor}`, d);
   });
 
   // Tooltip
   const tooltip = d3.select("#tooltip");
 
-  // Draw cells
+  // Value scale for violin (horizontal, 0-10)
+  const valueScale = d3.scaleLinear()
+    .domain([0, 10])
+    .range([0, xScale.bandwidth()]);
+
+  // Draw cells with violin plots
   for (const room of data.rooms) {
     for (const sensor of data.sensors) {
-      const value = dataMap.get(`${room}-${sensor}`) || 10;
+      const cellData = dataMap.get(`${room}-${sensor}`);
+      const value = cellData ? cellData.value : 10;
+      const values = cellData ? cellData.values : [];
 
+      const cellX = xScale(sensor);
+      const cellY = yScale(room);
+      const cellWidth = xScale.bandwidth();
+      const cellHeight = yScale.bandwidth();
+
+      // Background cell
       g.append("rect")
         .attr("class", "heatmap-cell")
-        .attr("x", xScale(sensor))
-        .attr("y", yScale(room))
-        .attr("width", xScale.bandwidth())
-        .attr("height", yScale.bandwidth())
-        .attr("fill", colorScale(value))
+        .attr("x", cellX)
+        .attr("y", cellY)
+        .attr("width", cellWidth)
+        .attr("height", cellHeight)
+        .attr("fill", colorScale(value));
+
+      // Draw violin plot if we have values
+      if (values.length > 2) {
+        // Compute KDE
+        const kde = kernelDensityEstimator(
+          kernelEpanechnikov(0.8),
+          d3.range(0, 10.1, 0.5)
+        );
+        const density = kde(values);
+
+        // Find max density for scaling
+        const maxDensity = d3.max(density, d => d[1]) || 1;
+
+        // Scale for density (vertical within cell)
+        const densityScale = d3.scaleLinear()
+          .domain([0, maxDensity])
+          .range([0, cellHeight / 2 - 2]);
+
+        // Create area generator for violin (horizontal)
+        const area = d3.area()
+          .x(d => cellX + valueScale(d[0]))
+          .y0(d => cellY + cellHeight / 2 + densityScale(d[1]))
+          .y1(d => cellY + cellHeight / 2 - densityScale(d[1]))
+          .curve(d3.curveCatmullRom);
+
+        g.append("path")
+          .datum(density)
+          .attr("class", "violin")
+          .attr("d", area)
+          .attr("fill", "rgba(255, 255, 255, 0.7)")
+          .attr("stroke", "rgba(0, 0, 0, 0.3)")
+          .attr("stroke-width", 0.5);
+
+        // Draw median line
+        const median = d3.median(values);
+        g.append("line")
+          .attr("x1", cellX + valueScale(median))
+          .attr("x2", cellX + valueScale(median))
+          .attr("y1", cellY + 4)
+          .attr("y2", cellY + cellHeight - 4)
+          .attr("stroke", "rgba(0, 0, 0, 0.5)")
+          .attr("stroke-width", 1.5);
+      }
+
+      // Invisible rect for tooltip
+      g.append("rect")
+        .attr("x", cellX)
+        .attr("y", cellY)
+        .attr("width", cellWidth)
+        .attr("height", cellHeight)
+        .attr("fill", "transparent")
         .on("mouseover", function(event) {
+          const min = values.length ? d3.min(values).toFixed(1) : "-";
+          const max = values.length ? d3.max(values).toFixed(1) : "-";
+          const med = values.length ? d3.median(values).toFixed(1) : "-";
           tooltip
             .style("opacity", 1)
-            .html(`<strong>${room}</strong><br>Sensor: ${sensor}<br>Avg: ${value.toFixed(2)}`);
+            .html(`<strong>${room}</strong><br>Sensor: ${sensor}<br>Avg: ${value.toFixed(2)}<br>Median: ${med}<br>Range: ${min} - ${max}<br>n=${values.length}`);
         })
         .on("mousemove", function(event) {
           tooltip

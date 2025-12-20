@@ -128,7 +128,7 @@ apiRouter.get("/training-data", (req, res) => {
       allSamples.push(...samples);
     }
 
-    // Aggregate data: compute average sensor values per target room
+    // Aggregate data: collect all sensor values per target room
     const aggregated = {};
     const sensorNames = new Set();
 
@@ -143,14 +143,13 @@ apiRouter.get("/training-data", (req, res) => {
       for (const sensor of sample.data) {
         sensorNames.add(sensor.room);
         if (!aggregated[sample.target].sensors[sensor.room]) {
-          aggregated[sample.target].sensors[sensor.room] = { sum: 0, count: 0 };
+          aggregated[sample.target].sensors[sensor.room] = { values: [] };
         }
-        aggregated[sample.target].sensors[sensor.room].sum += sensor.value;
-        aggregated[sample.target].sensors[sensor.room].count++;
+        aggregated[sample.target].sensors[sensor.room].values.push(sensor.value);
       }
     }
 
-    // Convert to averages
+    // Convert to result format with averages and all values
     const result = {
       sensors: Array.from(sensorNames),
       rooms: Object.keys(aggregated),
@@ -162,11 +161,14 @@ apiRouter.get("/training-data", (req, res) => {
     for (const [room, data] of Object.entries(aggregated)) {
       result.roomCounts[room] = data.count;
       result.totalSamples += data.count;
-      for (const [sensor, values] of Object.entries(data.sensors)) {
+      for (const [sensor, sensorData] of Object.entries(data.sensors)) {
+        const values = sensorData.values;
+        const sum = values.reduce((a, b) => a + b, 0);
         result.data.push({
           room,
           sensor,
-          value: values.sum / values.count,
+          value: sum / values.length,
+          values: values, // Include all values for violin plot
           count: data.count
         });
       }
