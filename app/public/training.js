@@ -161,6 +161,10 @@ function kernelEpanechnikov(k) {
 
 // Render heatmap with violin plots
 function renderHeatmap(data) {
+  if (!data.rooms || !data.sensors || data.rooms.length === 0 || data.sensors.length === 0) {
+    return;
+  }
+
   const svg = d3.select("#heatmap");
   svg.selectAll("*").remove();
 
@@ -211,8 +215,8 @@ function renderHeatmap(data) {
   for (const room of data.rooms) {
     for (const sensor of data.sensors) {
       const cellData = dataMap.get(`${room}-${sensor}`);
-      const value = cellData ? cellData.value : 10;
-      const values = cellData ? cellData.values : [];
+      const value = cellData?.value ?? 10;
+      const values = cellData?.values ?? [];
 
       const cellX = xScale(sensor);
       const cellY = yScale(room);

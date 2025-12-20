@@ -110,4 +110,6 @@ docker run --rm -it \
     -v "$APP_DIR/etc:/app/etc:ro" \
     -v "$APP_DIR/data:/app/data" \
     -v "$APP_DIR/models:/app/models:ro" \
+    -v "$PROJECT_ROOT/build_model/data:/app/training-data:ro" \
+    -e TRAINING_DATA_PATH=/app/training-data \
     roompresence-app
