@@ -2,8 +2,14 @@
 let selectedPersonId = null;
 let activeTab = "raw";
 
+// History buffers for sparklines
+const sensorHistory = {}; // { room: [values...] }
+const inferenceHistory = {}; // { room: [values...] }
+const historyLength = 30; // Keep last 30 data points
+
 // Chart dimensions
-const chartMargin = { top: 10, right: 60, bottom: 10, left: 100 };
+const sparklineWidth = 60;
+const chartMargin = { top: 10, right: 60, bottom: 10, left: 100 + sparklineWidth + 8 };
 const chartWidth = 500;
 const barHeight = 24;
 const barGap = 4;
@@ -116,6 +122,37 @@ async function initPersonSelector(defaultPersonId) {
   });
 }
 
+// Update history buffer
+function updateHistory(history, key, value) {
+  if (!history[key]) {
+    history[key] = [];
+  }
+  history[key].push(value);
+  if (history[key].length > historyLength) {
+    history[key].shift();
+  }
+}
+
+// Render sparkline
+function renderSparkline(g, history, x, y, width, height, maxValue, color) {
+  if (!history || history.length < 2) return;
+
+  const xScale = d3.scaleLinear()
+    .domain([0, historyLength - 1])
+    .range([0, width]);
+
+  const yScale = d3.scaleLinear()
+    .domain([0, maxValue])
+    .range([height, 0]);
+
+  const line = d3.line()
+    .x((d, i) => x + xScale(i + (historyLength - history.length)))
+    .y((d) => y + yScale(d))
+    .curve(d3.curveMonotoneX);
+
+  return line(history);
+}
+
 // D3.js Bar Chart for Sensors
 function renderSensorsChart(data) {
   const svg = d3.select("#sensors-chart");
@@ -124,6 +161,9 @@ function renderSensorsChart(data) {
   svg
     .attr("width", chartWidth + chartMargin.left + chartMargin.right)
     .attr("height", chartHeight + chartMargin.top + chartMargin.bottom);
+
+  // Update history
+  data.forEach((d) => updateHistory(sensorHistory, d.room, d.value));
 
   // Create scales
   const xScale = d3.scaleLinear().domain([0, 10]).range([0, chartWidth]);
@@ -142,6 +182,26 @@ function renderSensorsChart(data) {
       .attr("class", "chart-group")
       .attr("transform", `translate(${chartMargin.left},${chartMargin.top})`);
   }
+
+  // Sparklines
+  const sparklines = g.selectAll("path.sparkline").data(data, (d) => d.room);
+
+  sparklines
+    .enter()
+    .append("path")
+    .attr("class", "sparkline")
+    .attr("fill", "none")
+    .attr("stroke-width", 1.5)
+    .merge(sparklines)
+    .attr("stroke", (d) => (d.fresh ? "#4caf50" : "#9e9e9e"))
+    .attr("d", (d) => renderSparkline(
+      g, sensorHistory[d.room],
+      -sparklineWidth - 8, yScale(d.room),
+      sparklineWidth, yScale.bandwidth(),
+      10, d.fresh ? "#4caf50" : "#9e9e9e"
+    ));
+
+  sparklines.exit().remove();
 
   // Bars
   const bars = g.selectAll("rect.bar").data(data, (d) => d.room);
@@ -171,7 +231,7 @@ function renderSensorsChart(data) {
     .enter()
     .append("text")
     .attr("class", "bar-label")
-    .attr("x", -8)
+    .attr("x", -sparklineWidth - 16)
     .attr("text-anchor", "end")
     .attr("dominant-baseline", "middle")
     .merge(labels)
@@ -211,6 +271,9 @@ function renderInferenceChart(data) {
     .attr("width", chartWidth + chartMargin.left + chartMargin.right)
     .attr("height", chartHeight + chartMargin.top + chartMargin.bottom);
 
+  // Update history (store percentage values)
+  data.forEach((d) => updateHistory(inferenceHistory, d.room, d.value * 100));
+
   // Create scales (0-100%)
   const xScale = d3.scaleLinear().domain([0, 100]).range([0, chartWidth]);
 
@@ -235,6 +298,26 @@ function renderInferenceChart(data) {
     percent: d.value * 100,
     isBest: i === 0,
   }));
+
+  // Sparklines
+  const sparklines = g.selectAll("path.sparkline").data(processedData, (d) => d.room);
+
+  sparklines
+    .enter()
+    .append("path")
+    .attr("class", "sparkline")
+    .attr("fill", "none")
+    .attr("stroke-width", 1.5)
+    .merge(sparklines)
+    .attr("stroke", (d) => (d.isBest ? "#4caf50" : "#2196f3"))
+    .attr("d", (d) => renderSparkline(
+      g, inferenceHistory[d.room],
+      -sparklineWidth - 8, yScale(d.room),
+      sparklineWidth, yScale.bandwidth(),
+      100, d.isBest ? "#4caf50" : "#2196f3"
+    ));
+
+  sparklines.exit().remove();
 
   // Bars
   const bars = g.selectAll("rect.bar").data(processedData, (d) => d.room);
@@ -264,7 +347,7 @@ function renderInferenceChart(data) {
     .enter()
     .append("text")
     .attr("class", "bar-label")
-    .attr("x", -8)
+    .attr("x", -sparklineWidth - 16)
     .attr("text-anchor", "end")
     .attr("dominant-baseline", "middle")
     .merge(labels)
