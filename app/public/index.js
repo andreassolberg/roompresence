@@ -396,6 +396,107 @@ async function updateData() {
 }
 
 // Training mode functions
+async function fetchTrainingStats() {
+  try {
+    const response = await fetch("/api/training-stats");
+    if (response.status === 403) return null;
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching training stats:", error);
+    return null;
+  }
+}
+
+function renderTrainingStats(stats) {
+  if (!stats || !stats.counts) return;
+
+  document.querySelector("#stats-total").textContent = `(${stats.total} total)`;
+
+  const svg = d3.select("#stats-chart");
+  const margin = { top: 5, right: 50, bottom: 5, left: 80 };
+  const barHeight = 20;
+  const barGap = 3;
+
+  // Convert counts to array and sort by count descending
+  const data = Object.entries(stats.counts)
+    .map(([room, count]) => ({ room, count }))
+    .sort((a, b) => b.count - a.count);
+
+  if (data.length === 0) {
+    svg.attr("width", 0).attr("height", 0);
+    return;
+  }
+
+  const width = 250;
+  const height = data.length * (barHeight + barGap);
+
+  svg
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom);
+
+  const maxCount = d3.max(data, d => d.count) || 1;
+  const xScale = d3.scaleLinear().domain([0, maxCount]).range([0, width]);
+  const yScale = d3.scaleBand()
+    .domain(data.map(d => d.room))
+    .range([0, height])
+    .padding(0.1);
+
+  let g = svg.select("g.stats-group");
+  if (g.empty()) {
+    g = svg.append("g")
+      .attr("class", "stats-group")
+      .attr("transform", `translate(${margin.left},${margin.top})`);
+  }
+
+  // Bars
+  const bars = g.selectAll("rect.bar").data(data, d => d.room);
+  bars.enter()
+    .append("rect")
+    .attr("class", "bar")
+    .attr("x", 0)
+    .attr("y", d => yScale(d.room))
+    .attr("height", yScale.bandwidth())
+    .attr("fill", d => d.room === stats.currentRoom ? "#4caf50" : "#2196f3")
+    .merge(bars)
+    .transition()
+    .duration(300)
+    .attr("y", d => yScale(d.room))
+    .attr("width", d => xScale(d.count))
+    .attr("fill", d => d.room === stats.currentRoom ? "#4caf50" : "#2196f3");
+  bars.exit().remove();
+
+  // Labels
+  const labels = g.selectAll("text.label").data(data, d => d.room);
+  labels.enter()
+    .append("text")
+    .attr("class", "label")
+    .attr("x", -8)
+    .attr("text-anchor", "end")
+    .attr("dominant-baseline", "middle")
+    .attr("font-size", "12px")
+    .attr("fill", "#333")
+    .merge(labels)
+    .attr("y", d => yScale(d.room) + yScale.bandwidth() / 2)
+    .text(d => d.room);
+  labels.exit().remove();
+
+  // Values
+  const values = g.selectAll("text.value").data(data, d => d.room);
+  values.enter()
+    .append("text")
+    .attr("class", "value")
+    .attr("dominant-baseline", "middle")
+    .attr("font-size", "11px")
+    .attr("fill", "#666")
+    .merge(values)
+    .transition()
+    .duration(300)
+    .attr("x", d => xScale(d.count) + 6)
+    .attr("y", d => yScale(d.room) + yScale.bandwidth() / 2)
+    .text(d => d.count);
+  values.exit().remove();
+}
+
 function populateButtons(rooms) {
   const body = document.querySelector("#btns");
   rooms.forEach((room) => {
@@ -460,6 +561,14 @@ async function initializeUI() {
     document.querySelector("#training-disabled").style.display = "none";
     const rooms = await fetchRooms();
     populateButtons(rooms);
+
+    // Start polling training stats
+    async function updateTrainingStats() {
+      const stats = await fetchTrainingStats();
+      if (stats) renderTrainingStats(stats);
+    }
+    updateTrainingStats();
+    setInterval(updateTrainingStats, 1000);
   } else {
     document.querySelector("#training-section").style.display = "none";
     document.querySelector("#training-disabled").style.display = "block";

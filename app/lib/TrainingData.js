@@ -54,6 +54,20 @@ class TrainingData {
     });
   }
 
+  getStats() {
+    const stats = {};
+    for (const item of this.dataqueue) {
+      if (item.target) {
+        stats[item.target] = (stats[item.target] || 0) + 1;
+      }
+    }
+    return {
+      currentRoom: this.room,
+      counts: stats,
+      total: this.dataqueue.length
+    };
+  }
+
   addData(sensordata) {
     if (!this.room) {
       console.log("No target set. Skip data");

@@ -191,8 +191,16 @@ if (trainingMode) {
       res.status(400).send("Invalid room data: " + typeof room);
     }
   });
+
+  apiRouter.get("/training-stats", (req, res) => {
+    res.json(train.getStats());
+  });
 } else {
   apiRouter.post("/room", (req, res) => {
+    res.status(403).json({ error: "Training mode is disabled" });
+  });
+
+  apiRouter.get("/training-stats", (req, res) => {
     res.status(403).json({ error: "Training mode is disabled" });
   });
 }
