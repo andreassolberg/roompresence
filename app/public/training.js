@@ -312,11 +312,28 @@ function renderHeatmap(data) {
     .attr("dx", "-0.5em")
     .attr("dy", "0.5em");
 
+  // X axis label
+  g.append("text")
+    .attr("class", "axis-label")
+    .attr("x", width / 2)
+    .attr("y", height + margin.bottom - 5)
+    .attr("text-anchor", "middle")
+    .text("Sensors");
+
   // Y axis (rooms)
   g.append("g")
     .call(d3.axisLeft(yScale))
     .selectAll("text")
     .attr("class", "axis-label");
+
+  // Y axis label
+  g.append("text")
+    .attr("class", "axis-label")
+    .attr("transform", "rotate(-90)")
+    .attr("x", -height / 2)
+    .attr("y", -margin.left + 15)
+    .attr("text-anchor", "middle")
+    .text("Target");
 
   // Legend
   const legendWidth = 20;
