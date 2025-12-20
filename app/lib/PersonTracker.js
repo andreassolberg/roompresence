@@ -26,9 +26,10 @@ const processStatus = (status) => {
 };
 
 class PersonTracker {
-  constructor(devices, personId) {
+  constructor(devices, personId, options = {}) {
     this.personId = personId;
     this.devices = Array.isArray(devices) ? devices : [devices]; // Support single device for backward compat
+    this.trainingMode = options.trainingMode || false;
     this.room = "na";
     this.room5 = "na";
     this.room15 = "na";
@@ -41,6 +42,7 @@ class PersonTracker {
     this.inferenceRun = now();
 
     this.inference = new RoomPresenceInference();
+    this.inferenceEnabled = false; // Will be set to true if model loads successfully
     this.ready = false;
     this.lastPredictions = null;
 
@@ -59,9 +61,7 @@ class PersonTracker {
     this.emitter.on("sensor", callback);
   }
 
-  initializeDevices() {
-    const sensorOrder = this.inference.getSensorOrder();
-
+  initializeDevicesWithSensors(sensorOrder) {
     for (const deviceId of this.devices) {
       // Create sensor array for this device
       const sensors = sensorOrder.map((room) => ({
@@ -192,17 +192,36 @@ class PersonTracker {
   }
 
   async init() {
-    await this.inference.loadModel();
+    let sensorOrder;
 
-    // Get room list from model metadata
-    this.rooms = this.inference.getRooms();
-    console.log(`Model supports ${this.rooms.length} rooms:`, this.rooms);
+    try {
+      await this.inference.loadModel();
+      this.inferenceEnabled = true;
+
+      // Get room list and sensor order from model metadata
+      this.rooms = this.inference.getRooms();
+      sensorOrder = this.inference.getSensorOrder();
+      console.log(`Model loaded - supports ${this.rooms.length} rooms:`, this.rooms);
+    } catch (error) {
+      if (this.trainingMode) {
+        // In training mode, we can run without a model
+        console.log(`Model not available (${error.message}) - running in training-only mode`);
+        this.inferenceEnabled = false;
+
+        // Use rooms and sensorOrder from config instead
+        this.rooms = config.rooms;
+        sensorOrder = config.sensorOrder;
+        console.log(`Using config - ${this.rooms.length} rooms, ${sensorOrder.length} sensors`);
+      } else {
+        // Not in training mode - model is required
+        throw error;
+      }
+    }
 
     // Initialize devices (creates StreamListeners and sensor arrays)
-    const sensorOrder = this.inference.getSensorOrder();
     console.log(`Using ${sensorOrder.length} sensors:`, sensorOrder);
     console.log(`Initializing ${this.devices.length} device(s) for ${this.personId}:`);
-    this.initializeDevices();
+    this.initializeDevicesWithSensors(sensorOrder);
 
     this.ready = true;
   }
@@ -270,9 +289,19 @@ class PersonTracker {
 
   runInference() {
     if (!this.ready) {
-      console.log("Cannot run inference – waiting for model to load");
+      console.log("Cannot run inference – waiting for initialization");
       return;
     }
+
+    // Still emit sensor data even if inference is disabled (for training)
+    const activeState = this.deviceStates[this.activeDevice];
+    let sensorData = activeState.sensors.map(processStatus);
+    this.emitter.emit("sensor", sensorData);
+
+    if (!this.inferenceEnabled) {
+      return; // No model available, skip inference
+    }
+
     this.inferenceRun = now();
 
     // Sjekk om alle enheter har vært stale i over 120 sekunder
@@ -288,12 +317,6 @@ class PersonTracker {
       }
       return; // Ikke kjør inference når alle enheter er utilgjengelige
     }
-
-    // Use only active device's sensor data
-    const activeState = this.deviceStates[this.activeDevice];
-    let sensorData = activeState.sensors.map(processStatus);
-
-    this.emitter.emit("sensor", sensorData);
 
     // Build 14-dimensional input: [value, fresh, value, fresh, ...]
     let inputData = [];

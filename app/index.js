@@ -22,7 +22,7 @@ let trackers = {};
   try {
     for (const person of config.people) {
       console.log("Creating tracker for ", person.name, "with", person.devices.length, "device(s)");
-      trackers[person.id] = new PersonTracker(person.devices, person.id);
+      trackers[person.id] = new PersonTracker(person.devices, person.id, { trainingMode });
       await trackers[person.id].init();
 
       if (person.id === config.uiPersonId) {
