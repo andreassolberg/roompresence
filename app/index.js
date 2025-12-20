@@ -5,6 +5,7 @@ const config = require("./lib/config");
 console.log("Loaded config");
 const express = require("express");
 const path = require("path");
+const fs = require("fs");
 console.log("Loaded express and path");
 
 const TrainingData = require("./lib/TrainingData");
@@ -87,6 +88,91 @@ apiRouter.get("/status", (req, res) => {
     trainingEnabled: trainingMode,
     personId: config.uiPersonId
   });
+});
+
+// Training data analysis endpoints
+const trainingDataPath = process.env.TRAINING_DATA_PATH || path.join(__dirname, "../build_model/data");
+
+apiRouter.get("/datasets", (req, res) => {
+  try {
+    if (!fs.existsSync(trainingDataPath)) {
+      return res.json([]);
+    }
+    const datasets = fs.readdirSync(trainingDataPath)
+      .filter(f => fs.statSync(path.join(trainingDataPath, f)).isDirectory());
+    res.json(datasets);
+  } catch (error) {
+    console.error("Error listing datasets:", error);
+    res.status(500).json({ error: "Failed to list datasets" });
+  }
+});
+
+apiRouter.get("/training-data", (req, res) => {
+  const dataset = req.query.dataset;
+  if (!dataset) {
+    return res.status(400).json({ error: "Dataset parameter required" });
+  }
+
+  const datasetPath = path.join(trainingDataPath, dataset);
+  if (!fs.existsSync(datasetPath)) {
+    return res.status(404).json({ error: "Dataset not found" });
+  }
+
+  try {
+    const files = fs.readdirSync(datasetPath).filter(f => f.endsWith(".json"));
+    const allSamples = [];
+
+    for (const file of files) {
+      const content = fs.readFileSync(path.join(datasetPath, file), "utf8");
+      const samples = JSON.parse(content);
+      allSamples.push(...samples);
+    }
+
+    // Aggregate data: compute average sensor values per target room
+    const aggregated = {};
+    const sensorNames = new Set();
+
+    for (const sample of allSamples) {
+      if (!sample.target || !sample.data) continue;
+
+      if (!aggregated[sample.target]) {
+        aggregated[sample.target] = { count: 0, sensors: {} };
+      }
+      aggregated[sample.target].count++;
+
+      for (const sensor of sample.data) {
+        sensorNames.add(sensor.room);
+        if (!aggregated[sample.target].sensors[sensor.room]) {
+          aggregated[sample.target].sensors[sensor.room] = { sum: 0, count: 0 };
+        }
+        aggregated[sample.target].sensors[sensor.room].sum += sensor.value;
+        aggregated[sample.target].sensors[sensor.room].count++;
+      }
+    }
+
+    // Convert to averages
+    const result = {
+      sensors: Array.from(sensorNames),
+      rooms: Object.keys(aggregated),
+      data: []
+    };
+
+    for (const [room, data] of Object.entries(aggregated)) {
+      for (const [sensor, values] of Object.entries(data.sensors)) {
+        result.data.push({
+          room,
+          sensor,
+          value: values.sum / values.count,
+          count: data.count
+        });
+      }
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error loading training data:", error);
+    res.status(500).json({ error: "Failed to load training data" });
+  }
 });
 
 if (trainingMode) {
