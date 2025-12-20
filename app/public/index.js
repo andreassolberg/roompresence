@@ -410,7 +410,7 @@ async function fetchTrainingStats() {
 function renderTrainingStats(stats) {
   if (!stats || !stats.counts) return;
 
-  document.querySelector("#stats-total").textContent = `(${stats.total} total)`;
+  document.querySelector("#stats-total").textContent = `(${stats.totalCollected} this session, ${stats.total} pending save)`;
 
   const svg = d3.select("#stats-chart");
   const margin = { top: 5, right: 50, bottom: 5, left: 80 };

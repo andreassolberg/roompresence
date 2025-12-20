@@ -9,10 +9,42 @@ class TrainingData {
     this.dataqueue = [];
     this.start = now();
     this.room = null;
+    this.totalCollected = 0;
+    this.historicalCounts = {};  // Counts per room from saved files
+
+    this.loadExistingData();
 
     setInterval(() => {
       this.processData();
     }, 120000);
+  }
+
+  loadExistingData() {
+    const dataDir = path.join(process.cwd(), "data");
+
+    if (!fs.existsSync(dataDir)) {
+      return;
+    }
+
+    const files = fs.readdirSync(dataDir).filter(f => f.endsWith(".json"));
+
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(path.join(dataDir, file), "utf8");
+        const samples = JSON.parse(content);
+
+        for (const sample of samples) {
+          this.totalCollected++;
+          if (sample.target) {
+            this.historicalCounts[sample.target] = (this.historicalCounts[sample.target] || 0) + 1;
+          }
+        }
+      } catch (err) {
+        console.error(`Error reading ${file}:`, err.message);
+      }
+    }
+
+    console.log(`Loaded ${this.totalCollected} existing samples from ${files.length} files`);
   }
 
   setRoom(room) {
@@ -38,9 +70,19 @@ class TrainingData {
         .replace(/\.[0-9]{3}Z/, "")
         .replace(/:/g, "_");
       const filename = path.join(process.cwd(), "data", `${timestamp}.json`);
-      const jsonData = JSON.stringify(this.dataqueue, null, 2);
 
-      fs.writeFile(filename, jsonData, (err) => {
+      // Update historical counts before clearing queue
+      for (const item of this.dataqueue) {
+        if (item.target) {
+          this.historicalCounts[item.target] = (this.historicalCounts[item.target] || 0) + 1;
+        }
+      }
+
+      const queueToSave = this.dataqueue;
+      this.dataqueue = [];
+      this.start = now();
+
+      fs.writeFile(filename, JSON.stringify(queueToSave, null, 2), (err) => {
         if (err) {
           console.error("Error writing data to file:", err);
         } else {
@@ -48,23 +90,25 @@ class TrainingData {
         }
         resolve();
       });
-
-      this.dataqueue = [];
-      this.start = now();
     });
   }
 
   getStats() {
-    const stats = {};
+    // Start with historical counts
+    const stats = { ...this.historicalCounts };
+
+    // Add current queue counts
     for (const item of this.dataqueue) {
       if (item.target) {
         stats[item.target] = (stats[item.target] || 0) + 1;
       }
     }
+
     return {
       currentRoom: this.room,
       counts: stats,
-      total: this.dataqueue.length
+      total: this.dataqueue.length,
+      totalCollected: this.totalCollected
     };
   }
 
@@ -92,6 +136,7 @@ class TrainingData {
       data: sensordata,
       vector: vector,
     });
+    this.totalCollected++;
     console.log("Data added to queue.", sensordata);
   }
 }

@@ -31,10 +31,13 @@ class PersonTracker {
     this.devices = Array.isArray(devices) ? devices : [devices]; // Support single device for backward compat
     this.trainingMode = options.trainingMode || false;
     this.room = "na";
+    this.room0 = "na";
+    this.room0Since = now();
+    this.room0Confident = false;
+    this.room0Stable = false;
     this.room5 = "na";
     this.room15 = "na";
     this.room120 = "na";
-    this.roomSince = now();
     this.rooms = null; // Will be loaded from model metadata
 
     this.emitter = new EventEmitter();
@@ -157,6 +160,7 @@ class PersonTracker {
       const activeState = this.deviceStates[this.activeDevice];
       activeState.stream.sendMessage(this.personId, {
         room: this.room,
+        room0: this.room0,
         room5: this.room5,
         room15: this.room15,
         room120: this.room120,
@@ -165,27 +169,50 @@ class PersonTracker {
     }
   }
 
-  setRoom(room) {
-    let since = now() - this.roomSince;
+  setRoom(room, confidence = 0) {
+    let since = now() - this.room0Since;
     let updated = false;
-    if (room !== this.room) {
-      this.roomSince = now();
+
+    // room0 oppdateres alltid umiddelbart
+    if (room !== this.room0) {
+      this.room0Since = now();
+      this.room0 = room;
+      this.room0Confident = false;
+      this.room0Stable = false;
       updated = true;
-      this.room = room;
-    } else {
-      if (since > 5 && this.room5 !== room) {
-        this.room5 = room;
-        updated = true;
-      }
-      if (since > 15 && this.room15 !== room) {
-        this.room15 = room;
-        updated = true;
-      }
-      if (since > 120 && this.room120 !== room) {
-        this.room120 = room;
-        updated = true;
-      }
+      since = 0;
     }
+
+    // Sjekk konfidens-flagg (kan settes når som helst)
+    if (confidence > 0.9 && !this.room0Confident) {
+      this.room0Confident = true;
+      updated = true;
+    }
+
+    // Sjekk stabilitet (5 sekunder med samme room0)
+    if (since > 5 && !this.room0Stable) {
+      this.room0Stable = true;
+      this.room5 = room;
+      updated = true;
+    }
+
+    // Oppdater room når BEGGE betingelser er oppfylt
+    if (this.room0Confident && this.room0Stable && this.room !== room) {
+      this.room = room;
+      updated = true;
+    }
+
+    // room15/120 baseres på room0Since
+    if (since > 15 && this.room15 !== room) {
+      this.room15 = room;
+      updated = true;
+    }
+
+    if (since > 120 && this.room120 !== room) {
+      this.room120 = room;
+      updated = true;
+    }
+
     if (updated) {
       this.publishState();
     }
@@ -309,10 +336,13 @@ class PersonTracker {
       if (this.room !== "na") {
         console.log(`All devices stale for 120s+ – setting room to 'na'`);
         this.room = "na";
+        this.room0 = "na";
+        this.room0Confident = false;
+        this.room0Stable = false;
+        this.room0Since = now();
         this.room5 = "na";
         this.room15 = "na";
         this.room120 = "na";
-        this.roomSince = now();
         this.publishState();
       }
       return; // Ikke kjør inference når alle enheter er utilgjengelige
@@ -336,7 +366,7 @@ class PersonTracker {
 
       sensorOutput.sort((a, b) => b.value - a.value);
       this.lastPredictions = sensorOutput;
-      this.setRoom(sensorOutput[0].room);
+      this.setRoom(sensorOutput[0].room, sensorOutput[0].value);
 
       this.debugRoom();
       if (config.debug) {
@@ -371,10 +401,11 @@ class PersonTracker {
 
   debugRoom() {
     if (config.debug) {
+      const since = now() - this.room0Since;
       console.log(
-        `Room [${this.room}]  since ${now() - this.roomSince}s    5s[${
-          this.room5
-        }]   15s[${this.room15}]   120s[${this.room120}]`
+        `Room [${this.room}] room0[${this.room0}] ` +
+        `conf:${this.room0Confident} stable:${this.room0Stable} ` +
+        `since ${since}s  5s[${this.room5}]  15s[${this.room15}]  120s[${this.room120}]`
       );
     }
   }
