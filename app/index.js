@@ -154,10 +154,14 @@ apiRouter.get("/training-data", (req, res) => {
     const result = {
       sensors: Array.from(sensorNames),
       rooms: Object.keys(aggregated),
+      roomCounts: {},
+      totalSamples: 0,
       data: []
     };
 
     for (const [room, data] of Object.entries(aggregated)) {
+      result.roomCounts[room] = data.count;
+      result.totalSamples += data.count;
       for (const [sensor, values] of Object.entries(data.sensors)) {
         result.data.push({
           room,

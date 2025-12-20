@@ -45,6 +45,7 @@ async function initDatasetSelector() {
 // Hide visualization
 function hideVisualization() {
   document.querySelector("#stats").style.display = "none";
+  document.querySelector("#samples-container").style.display = "none";
   document.querySelector("#heatmap-container").style.display = "none";
   document.querySelector("#no-data").style.display = "block";
 }
@@ -59,18 +60,90 @@ async function loadDataset(dataset) {
 
   // Show containers
   document.querySelector("#stats").style.display = "block";
+  document.querySelector("#samples-container").style.display = "block";
   document.querySelector("#heatmap-container").style.display = "block";
   document.querySelector("#no-data").style.display = "none";
 
   // Update stats
-  const totalSamples = data.data.length > 0 ? data.data[0].count : 0;
-  document.querySelector("#stat-samples").textContent =
-    data.data.reduce((max, d) => Math.max(max, d.count), 0);
+  document.querySelector("#stat-samples").textContent = data.totalSamples || 0;
   document.querySelector("#stat-rooms").textContent = data.rooms.length;
   document.querySelector("#stat-sensors").textContent = data.sensors.length;
 
-  // Render heatmap
+  // Render charts
+  renderSamplesChart(data);
   renderHeatmap(data);
+}
+
+// Render samples per room chart
+function renderSamplesChart(data) {
+  const svg = d3.select("#samples-chart");
+  svg.selectAll("*").remove();
+
+  const margin = { top: 10, right: 60, bottom: 10, left: 100 };
+  const barHeight = 24;
+  const barGap = 4;
+
+  // Sort rooms by count descending
+  const roomData = Object.entries(data.roomCounts)
+    .map(([room, count]) => ({ room, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const width = 400;
+  const height = roomData.length * (barHeight + barGap);
+
+  svg
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom);
+
+  const g = svg
+    .append("g")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+  const maxCount = d3.max(roomData, d => d.count);
+
+  const xScale = d3.scaleLinear()
+    .domain([0, maxCount])
+    .range([0, width]);
+
+  const yScale = d3.scaleBand()
+    .domain(roomData.map(d => d.room))
+    .range([0, height])
+    .padding(0.15);
+
+  // Bars
+  g.selectAll("rect.bar")
+    .data(roomData)
+    .enter()
+    .append("rect")
+    .attr("class", "bar")
+    .attr("x", 0)
+    .attr("y", d => yScale(d.room))
+    .attr("width", d => xScale(d.count))
+    .attr("height", yScale.bandwidth())
+    .attr("fill", "#2196f3");
+
+  // Labels (room names)
+  g.selectAll("text.label")
+    .data(roomData)
+    .enter()
+    .append("text")
+    .attr("class", "axis-label")
+    .attr("x", -8)
+    .attr("y", d => yScale(d.room) + yScale.bandwidth() / 2)
+    .attr("text-anchor", "end")
+    .attr("dominant-baseline", "middle")
+    .text(d => d.room);
+
+  // Values
+  g.selectAll("text.value")
+    .data(roomData)
+    .enter()
+    .append("text")
+    .attr("class", "legend-label")
+    .attr("x", d => xScale(d.count) + 8)
+    .attr("y", d => yScale(d.room) + yScale.bandwidth() / 2)
+    .attr("dominant-baseline", "middle")
+    .text(d => d.count);
 }
 
 // Render heatmap
