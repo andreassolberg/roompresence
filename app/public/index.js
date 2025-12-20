@@ -118,6 +118,9 @@ async function initPersonSelector(defaultPersonId) {
 
   select.addEventListener("change", (e) => {
     selectedPersonId = e.target.value;
+    // Clear sparkline history when switching person
+    Object.keys(sensorHistory).forEach(key => delete sensorHistory[key]);
+    Object.keys(inferenceHistory).forEach(key => delete inferenceHistory[key]);
     updateData();
   });
 }
