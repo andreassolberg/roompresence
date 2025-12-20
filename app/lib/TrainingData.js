@@ -70,7 +70,6 @@ class TrainingData {
 
   addData(sensordata) {
     if (!this.room) {
-      console.log("No target set. Skip data");
       return;
     }
 
