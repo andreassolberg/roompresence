@@ -1,6 +1,6 @@
 // State
 let selectedPersonId = null;
-let activeTab = "raw";
+let activeTab = "charts";
 
 // History buffers for sparklines
 const sensorHistory = {}; // { room: [values...] }

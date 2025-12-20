@@ -125,14 +125,11 @@
     </div>
 
     <div class="tabs">
-      <button class="tab active" data-tab="raw">Raw Data</button>
-      <button class="tab" data-tab="charts">Charts</button>
+      <button class="tab active" data-tab="charts">Charts</button>
+      <button class="tab" data-tab="raw">Raw Data</button>
     </div>
 
-    <div id="tab-raw" class="tab-content active">
-      <pre id="sensordata"></pre>
-    </div>
-    <div id="tab-charts" class="tab-content">
+    <div id="tab-charts" class="tab-content active">
       <h3>Sensors</h3>
       <div class="chart-container">
         <svg id="sensors-chart"></svg>
@@ -141,6 +138,9 @@
       <div class="chart-container">
         <svg id="inference-chart"></svg>
       </div>
+    </div>
+    <div id="tab-raw" class="tab-content">
+      <pre id="sensordata"></pre>
     </div>
   </body>
 </html>
