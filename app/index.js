@@ -83,6 +83,19 @@ apiRouter.get("/people", (req, res) => {
   res.json(config.people.map(p => ({ id: p.id, name: p.name })));
 });
 
+apiRouter.get("/history", (req, res) => {
+  const history = {};
+  for (const [personId, tracker] of Object.entries(trackers)) {
+    const person = config.people.find(p => p.id === personId);
+    history[personId] = {
+      name: person?.name || personId,
+      currentRoom: tracker.room,
+      history: tracker.getRoomHistory()
+    };
+  }
+  res.json(history);
+});
+
 apiRouter.get("/status", (req, res) => {
   res.json({
     trainingEnabled: trainingMode,

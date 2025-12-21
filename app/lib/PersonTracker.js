@@ -38,6 +38,7 @@ class PersonTracker {
     this.room5 = "na";
     this.room15 = "na";
     this.room120 = "na";
+    this.roomHistory = [];  // Array av { room, timestamp } for siste 24 timer
     this.rooms = null; // Will be loaded from model metadata
 
     this.emitter = new EventEmitter();
@@ -199,6 +200,7 @@ class PersonTracker {
     // Oppdater room når BEGGE betingelser er oppfylt
     if (this.room0Confident && this.room0Stable && this.room !== room) {
       this.room = room;
+      this.addRoomHistory(room);
       updated = true;
     }
 
@@ -216,6 +218,20 @@ class PersonTracker {
     if (updated) {
       this.publishState();
     }
+  }
+
+  addRoomHistory(room) {
+    const timestamp = Date.now();
+    const cutoff = timestamp - 24 * 60 * 60 * 1000; // 24 timer
+
+    this.roomHistory.push({ room, timestamp });
+
+    // Fjern entries eldre enn 24 timer
+    this.roomHistory = this.roomHistory.filter(h => h.timestamp > cutoff);
+  }
+
+  getRoomHistory() {
+    return this.roomHistory;
   }
 
   async init() {

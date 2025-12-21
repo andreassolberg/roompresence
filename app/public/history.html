@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="history.js" defer></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #f0f0f0;
+      }
+
+      h1 {
+        color: #333;
+        margin-top: 0;
+      }
+
+      .nav-link {
+        color: #007bff;
+        text-decoration: none;
+      }
+
+      .nav-link:hover {
+        text-decoration: underline;
+      }
+
+      .controls {
+        background: #e3f2fd;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 5px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        flex-wrap: wrap;
+      }
+
+      .controls button {
+        padding: 8px 16px;
+        font-size: 14px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        background: white;
+        cursor: pointer;
+      }
+
+      .controls button.active {
+        background: #007bff;
+        color: white;
+        border-color: #007bff;
+      }
+
+      .controls button:hover:not(.active) {
+        background: #f0f0f0;
+      }
+
+      .legend {
+        background: white;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+      }
+
+      .legend-color {
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+      }
+
+      .timeline-container {
+        background: white;
+        padding: 20px;
+        border-radius: 5px;
+      }
+
+      .person-row {
+        margin-bottom: 30px;
+      }
+
+      .person-name {
+        font-weight: bold;
+        font-size: 14px;
+        margin-bottom: 5px;
+        color: #333;
+      }
+
+      .current-room {
+        font-size: 12px;
+        color: #666;
+        margin-left: 10px;
+      }
+
+      .timeline-svg {
+        display: block;
+      }
+
+      .segment-label {
+        font-size: 11px;
+        fill: white;
+        text-shadow: 0 0 3px rgba(0,0,0,0.5);
+        pointer-events: none;
+      }
+
+      .axis text {
+        font-size: 11px;
+      }
+
+      .no-data {
+        text-align: center;
+        padding: 40px;
+        color: #666;
+        font-style: italic;
+      }
+
+      .tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+    </style>
+    <title>Room History</title>
+  </head>
+  <body>
+    <h1>Room History</h1>
+    <p><a href="/" class="nav-link">Back to Room Presence Monitor</a></p>
+
+    <div class="controls">
+      <strong>Time range:</strong>
+      <button data-hours="1">Last 1 hour</button>
+      <button data-hours="6" class="active">Last 6 hours</button>
+      <button data-hours="24">Last 24 hours</button>
+    </div>
+
+    <div id="legend" class="legend"></div>
+
+    <div id="timeline-container" class="timeline-container">
+      <div id="no-data" class="no-data">Loading history data...</div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+  </body>
+</html>
