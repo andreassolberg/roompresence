@@ -14,8 +14,8 @@ class HouseStateMachine {
     // History tracking (similar to roomHistory in PersonTracker)
     this.doorHistory = {}; // { doorId: [{ state, timestamp }] }
 
-    // Staleness threshold in seconds (5 minutes for door sensors)
-    this.stalenessThreshold = 300;
+    // Staleness threshold in seconds (12 hours for door sensors - only send on state change)
+    this.stalenessThreshold = 43200; // 12 hours = 12 * 60 * 60
 
     // Extensibility: future sensor types
     this.motionStates = {};
