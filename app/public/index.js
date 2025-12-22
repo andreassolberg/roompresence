@@ -1,5 +1,4 @@
 // State
-let activeTab = "charts";
 let allPeople = {}; // Store all people data
 
 // History buffers for sparklines - now keyed by personId
@@ -79,34 +78,6 @@ async function fetchRoomStates() {
     console.error("Error fetching room states:", error);
     return {};
   }
-}
-
-// Tab logic
-function initTabs() {
-  const tabs = document.querySelectorAll(".tab");
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const tabName = tab.dataset.tab;
-      setActiveTab(tabName);
-    });
-  });
-}
-
-function setActiveTab(tabName) {
-  activeTab = tabName;
-
-  // Update tab buttons
-  document.querySelectorAll(".tab").forEach((tab) => {
-    tab.classList.toggle("active", tab.dataset.tab === tabName);
-  });
-
-  // Update tab content
-  document.querySelectorAll(".tab-content").forEach((content) => {
-    content.classList.toggle("active", content.id === `tab-${tabName}`);
-  });
-
-  // Trigger immediate data fetch for the new tab
-  updateData();
 }
 
 // Person selector - REMOVED (now showing all people in cards)
@@ -379,6 +350,9 @@ function renderPersonCard(personId, personData) {
   if (personData.hasPendingTransition) {
     badges += '<span class="badge pending">Pending</span>';
   }
+  if (personData.doorLocked) {
+    badges += '<span class="badge locked">Locked</span>';
+  }
 
   // Transition info
   let transitionInfo = '';
@@ -387,6 +361,16 @@ function renderPersonCard(personId, personData) {
       <div class="transition-info">
         Transition: ${personData.room} <span class="transition-arrow">→</span> ${personData.room0}
         (${personData.secondsSinceChange}s)
+      </div>
+    `;
+  }
+
+  // Locked door info
+  let lockedDoorInfo = '';
+  if (personData.doorLocked && personData.lockedDoors && personData.lockedDoors.length > 0) {
+    lockedDoorInfo = `
+      <div class="transition-info" style="color: #f44336;">
+        Locked behind: ${personData.lockedDoors.join(', ')}
       </div>
     `;
   }
@@ -419,6 +403,7 @@ function renderPersonCard(personId, personData) {
       </div>
 
       ${transitionInfo}
+      ${lockedDoorInfo}
       ${deviceInfo}
 
       <div class="card-charts">
@@ -475,6 +460,9 @@ function updatePersonCard(personId, personData) {
   if (personData.hasPendingTransition) {
     badges += '<span class="badge pending">Pending</span>';
   }
+  if (personData.doorLocked) {
+    badges += '<span class="badge locked">Locked</span>';
+  }
 
   const badgesEl = card.querySelector('.status-badges');
   if (badgesEl) badgesEl.innerHTML = badges;
@@ -488,16 +476,28 @@ function updatePersonCard(personId, personData) {
     `;
   }
 
-  const existingTransitionInfo = card.querySelector('.transition-info');
-  if (transitionInfo && !existingTransitionInfo) {
-    const badgesContainer = card.querySelector('.status-badges');
+  // Update locked door info
+  let lockedDoorInfo = '';
+  if (personData.doorLocked && personData.lockedDoors && personData.lockedDoors.length > 0) {
+    lockedDoorInfo = `
+      Locked behind: ${personData.lockedDoors.join(', ')}
+    `;
+  }
+
+  // Get all info elements (transition and locked)
+  const existingInfoElements = card.querySelectorAll('.transition-info');
+
+  // Remove all existing info elements
+  existingInfoElements.forEach(el => el.remove());
+
+  // Add new info elements in order
+  const badgesContainer = card.querySelector('.status-badges');
+  if (transitionInfo) {
     badgesContainer.insertAdjacentHTML('afterend', `<div class="transition-info">${transitionInfo}</div>`);
-  } else if (existingTransitionInfo) {
-    if (transitionInfo) {
-      existingTransitionInfo.innerHTML = transitionInfo;
-    } else {
-      existingTransitionInfo.remove();
-    }
+  }
+  if (lockedDoorInfo) {
+    const insertAfter = transitionInfo ? card.querySelector('.transition-info') : badgesContainer;
+    insertAfter.insertAdjacentHTML('afterend', `<div class="transition-info" style="color: #f44336;">${lockedDoorInfo}</div>`);
   }
 }
 
@@ -544,15 +544,9 @@ async function renderAllPersonCards() {
   });
 }
 
-// Update data based on active tab
+// Update data - render all person cards
 async function updateData() {
-  if (activeTab === "raw") {
-    const data = await fetchRoomStates();
-    const sensorDataElement = document.querySelector("#sensordata");
-    sensorDataElement.textContent = JSON.stringify(data, null, 2);
-  } else if (activeTab === "charts") {
-    await renderAllPersonCards();
-  }
+  await renderAllPersonCards();
 }
 
 // Training mode functions
@@ -708,9 +702,6 @@ async function initializeUI() {
     console.error("Failed to load application status");
     return;
   }
-
-  // Initialize tabs
-  initTabs();
 
   // Show/hide training UI based on status
   if (status.trainingEnabled) {

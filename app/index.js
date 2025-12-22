@@ -138,6 +138,10 @@ apiRouter.get("/room-states", (req, res) => {
 
     const secondsSince = Math.floor((Date.now() / 1000) - tracker.room0Since);
 
+    // Get locked door information
+    const lockedDoors = tracker.coordinator ? tracker.coordinator.getLockedDoors(personId) : {};
+    const doorLocked = Object.keys(lockedDoors).length > 0;
+
     states[personId] = {
       name: person?.name || personId,
       room: tracker.room,
@@ -150,7 +154,9 @@ apiRouter.get("/room-states", (req, res) => {
       activeDevice: tracker.activeDevice,
       predictions: predictions.slice(0, 5),
       sensors: sensors,
-      hasPendingTransition: tracker.room !== tracker.room0
+      hasPendingTransition: tracker.room !== tracker.room0,
+      doorLocked: doorLocked,
+      lockedDoors: Object.keys(lockedDoors)
     };
   }
   res.json(states);

@@ -246,6 +246,11 @@
         color: white;
       }
 
+      .badge.locked {
+        background: #f44336;
+        color: white;
+      }
+
       /* Transition Info */
       .transition-info {
         font-size: 12px;
@@ -312,25 +317,6 @@
     <div id="training-disabled" style="display: none; background: #fff3cd; padding: 15px; margin-bottom: 20px; border-radius: 5px;">
       <strong>Training mode is disabled.</strong>
       <p>To enable training data collection, restart the application with the <code>--train</code> flag.</p>
-    </div>
-
-    <div class="tabs">
-      <button class="tab active" data-tab="charts">Charts</button>
-      <button class="tab" data-tab="raw">Raw Data</button>
-    </div>
-
-    <div id="tab-charts" class="tab-content active">
-      <h3>Sensors</h3>
-      <div class="chart-container">
-        <svg id="sensors-chart"></svg>
-      </div>
-      <h3>Inference</h3>
-      <div class="chart-container">
-        <svg id="inference-chart"></svg>
-      </div>
-    </div>
-    <div id="tab-raw" class="tab-content">
-      <pre id="sensordata"></pre>
     </div>
   </body>
 </html>
