@@ -12,7 +12,6 @@ class TrainingData {
     this.totalCollected = 0;
     this.historicalCounts = {};  // Counts per room from saved files
     this.lastVector = null;  // Track last sample to avoid duplicates
-    this.lastTarget = null;  // Track last target room
 
     this.loadExistingData();
 
@@ -53,11 +52,6 @@ class TrainingData {
     this.room = room;
     if (room === "") {
       this.room = null;
-    }
-    // Reset last vector when changing rooms to ensure first sample in new room is collected
-    if (this.room !== this.lastTarget) {
-      this.lastVector = null;
-      this.lastTarget = null;
     }
   }
 
@@ -137,13 +131,13 @@ class TrainingData {
       }
     }
 
-    // Skip if identical to last sample (same target and same vector)
-    if (this.lastVector && this.lastTarget === this.room) {
+    // Skip if sensor values haven't changed (regardless of target room)
+    if (this.lastVector) {
       const isIdentical = vector.length === this.lastVector.length &&
         vector.every((val, idx) => Math.abs(val - this.lastVector[idx]) < 1e-6);
 
       if (isIdentical) {
-        console.log("Skipping duplicate sample (identical to previous)");
+        console.log("Skipping duplicate sample (sensors unchanged)");
         return;
       }
     }
@@ -156,7 +150,6 @@ class TrainingData {
     });
     this.totalCollected++;
     this.lastVector = vector;
-    this.lastTarget = this.room;
     console.log("Data added to queue.", sensordata);
   }
 }
