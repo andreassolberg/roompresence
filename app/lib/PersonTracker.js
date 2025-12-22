@@ -227,8 +227,28 @@ class PersonTracker {
                       this.coordinator.canTransition(this.personId, this.room, room, this.room0SuperStable);
 
       if (canMove) {
+        const fromRoom = this.room;
         this.room = room;
         this.addRoomHistory(room);
+
+        // Sjekk om vi forlater en dør-gruppe
+        if (this.coordinator) {
+          const leftDoorGroup = this.coordinator.hasLeftDoorGroup(
+            this.personId,
+            fromRoom,
+            room
+          );
+
+          if (leftDoorGroup) {
+            // Forlot dør-gruppen → clear locks
+            this.coordinator.clearLockedDoors(this.personId);
+            if (config.debug) {
+              console.log(`[${this.personId}] Left door group: ${fromRoom} → ${room}`);
+            }
+          } else if (config.debug) {
+            console.log(`[${this.personId}] Stayed within door group: ${fromRoom} → ${room}`);
+          }
+        }
 
         // Reset super-stability ved faktisk rombytte
         this.room0SuperStable = false;

@@ -92,10 +92,10 @@ class RoomTransitionCoordinator {
     if (!this.enabled) return;
     if (currentRoom === "na") return;
 
-    // Kun evaluer når superStable
+    // Kun evaluer når superStable for Å SETTE locks
+    // Men IKKE clear hvis ikke superStable - la låsen persistere
     if (!isSuperStable) {
-      this.clearLockedDoors(personId);
-      return;
+      return; // Behold eksisterende låsetilstand
     }
 
     // Finn alle dører som kobler til dette rommet
@@ -133,6 +133,40 @@ class RoomTransitionCoordinator {
       // Alle dører er åpne
       this.clearLockedDoors(personId);
     }
+  }
+
+  /**
+   * Sjekk om person har forlatt en dør-gruppe
+   * Returnerer true hvis overgang går fra et rom bak en dør til et rom UTENFOR den døren
+   */
+  hasLeftDoorGroup(personId, fromRoom, toRoom) {
+    if (!this.enabled) return false;
+    if (fromRoom === toRoom) return false;
+
+    // Finn hvilke dører som var involvert i fromRoom
+    const fromDoors = [];
+    for (const [doorId, rooms] of Object.entries(this.doorToRooms)) {
+      if (rooms.includes(fromRoom)) {
+        fromDoors.push(doorId);
+      }
+    }
+
+    if (fromDoors.length === 0) {
+      // fromRoom har ingen dører → ingen gruppe å forlate
+      return false;
+    }
+
+    // Sjekk om toRoom er bak noen av de samme dørene
+    for (const doorId of fromDoors) {
+      const rooms = this.doorToRooms[doorId];
+      if (rooms.includes(toRoom)) {
+        // Fortsatt bak samme dør → ikke forlatt gruppe
+        return false;
+      }
+    }
+
+    // Ingen felles dører → forlatt gruppe
+    return true;
   }
 
   /**
