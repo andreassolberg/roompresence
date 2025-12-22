@@ -213,6 +213,11 @@ class PersonTracker {
       if (config.debug) {
         console.log(`[${this.personId}] room0 is now SUPER-STABLE (120s+)`);
       }
+
+      // Evaluer om person er låst bak lukkede dører
+      if (this.coordinator) {
+        this.coordinator.evaluateCurrentRoomLock(this.personId, this.room, true);
+      }
     }
 
     // Oppdater room når BEGGE betingelser er oppfylt OG dør-begrensninger tillater det
@@ -248,6 +253,11 @@ class PersonTracker {
     if (since > 120 && this.room120 !== room) {
       this.room120 = room;
       updated = true;
+    }
+
+    // Evaluer låsetilstand kontinuerlig når superStable
+    if (this.coordinator && this.room0SuperStable) {
+      this.coordinator.evaluateCurrentRoomLock(this.personId, this.room, true);
     }
 
     if (updated) {

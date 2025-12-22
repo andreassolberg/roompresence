@@ -85,6 +85,57 @@ class RoomTransitionCoordinator {
   }
 
   /**
+   * Evaluer om person er låst i sitt nåværende rom (proaktiv sjekk)
+   * Kalles når person blir superStable
+   */
+  evaluateCurrentRoomLock(personId, currentRoom, isSuperStable) {
+    if (!this.enabled) return;
+    if (currentRoom === "na") return;
+
+    // Kun evaluer når superStable
+    if (!isSuperStable) {
+      this.clearLockedDoors(personId);
+      return;
+    }
+
+    // Finn alle dører som kobler til dette rommet
+    const doorsForRoom = [];
+    for (const [doorId, rooms] of Object.entries(this.doorToRooms)) {
+      if (rooms.includes(currentRoom)) {
+        doorsForRoom.push(doorId);
+      }
+    }
+
+    if (doorsForRoom.length === 0) {
+      // Ingen dører for dette rommet
+      return;
+    }
+
+    // Sjekk hvilke dører som er lukket
+    const closedDoors = [];
+    for (const doorId of doorsForRoom) {
+      const doorState = this.houseState.getDoorState(doorId);
+
+      // Stale/ukjent dør behandles som åpen
+      if (!doorState || doorState.stale || doorState.state === null) {
+        continue;
+      }
+
+      if (doorState.state === false) { // false = lukket
+        closedDoors.push(doorId);
+      }
+    }
+
+    if (closedDoors.length > 0) {
+      // Person er låst bak minst én lukket dør
+      this.trackLockedDoors(personId, currentRoom, closedDoors);
+    } else {
+      // Alle dører er åpne
+      this.clearLockedDoors(personId);
+    }
+  }
+
+  /**
    * Finn dører som separerer to rom
    */
   findSeparatingDoors(room1, room2) {
