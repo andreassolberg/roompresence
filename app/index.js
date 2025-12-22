@@ -10,6 +10,8 @@ console.log("Loaded express and path");
 
 const TrainingData = require("./lib/TrainingData");
 console.log("Loaded TrainingData");
+const HouseStateMachine = require("./lib/HouseStateMachine");
+console.log("Loaded HouseStateMachine");
 const trainingMode = process.env.TRAIN_MODE === 'true';
 console.log(`Training mode: ${trainingMode}`);
 let train = null;
@@ -19,6 +21,7 @@ if (trainingMode) {
 }
 
 let trackers = {};
+let houseState = null;
 (async () => {
   try {
     for (const person of config.people) {
@@ -36,6 +39,21 @@ let trackers = {};
       }
     }
     console.log("All trackers initialized successfully");
+
+    // Initialize HouseStateMachine
+    if (config.house && config.house.doors) {
+      console.log("Initializing HouseStateMachine...");
+      houseState = new HouseStateMachine();
+      await houseState.init();
+
+      if (config.debug) {
+        houseState.onDoorStateChange((event) => {
+          console.log(`[House] Door ${event.doorId}: ${event.state ? 'OPEN' : 'CLOSED'}`);
+        });
+      }
+    } else {
+      console.log("HouseStateMachine disabled (no house config)");
+    }
   } catch (error) {
     console.error("Error initializing trackers:", error);
   }
@@ -101,6 +119,40 @@ apiRouter.get("/status", (req, res) => {
     trainingEnabled: trainingMode,
     personId: config.uiPersonId
   });
+});
+
+// House state endpoints
+apiRouter.get("/house/doors", (req, res) => {
+  if (!houseState || !houseState.ready) {
+    return res.status(503).json({ error: "House state tracking not available" });
+  }
+  res.json(houseState.getDoorStates());
+});
+
+apiRouter.get("/house/doors/:doorId", (req, res) => {
+  if (!houseState || !houseState.ready) {
+    return res.status(503).json({ error: "House state tracking not available" });
+  }
+  const doorState = houseState.getDoorState(req.params.doorId);
+  if (!doorState) {
+    return res.status(404).json({ error: `Door not found: ${req.params.doorId}` });
+  }
+  res.json(doorState);
+});
+
+apiRouter.get("/house/doors/:doorId/history", (req, res) => {
+  if (!houseState || !houseState.ready) {
+    return res.status(503).json({ error: "House state tracking not available" });
+  }
+  const history = houseState.getDoorHistory(req.params.doorId);
+  res.json({ doorId: req.params.doorId, history, count: history.length });
+});
+
+apiRouter.get("/house/history", (req, res) => {
+  if (!houseState || !houseState.ready) {
+    return res.status(503).json({ error: "House state tracking not available" });
+  }
+  res.json(houseState.getAllHistory());
 });
 
 // Training data analysis endpoints
@@ -232,7 +284,12 @@ process.on('SIGINT', async () => {
   console.log('\nShutting down gracefully...');
   if (trainingMode && train) {
     await train.processData();
-    console.log('Training data saved. Goodbye!');
+    console.log('Training data saved.');
   }
+  if (houseState) {
+    houseState.close();
+    console.log('House state tracking closed.');
+  }
+  console.log('Goodbye!');
   process.exit(0);
 });
