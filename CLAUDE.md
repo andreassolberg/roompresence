@@ -69,7 +69,8 @@ cd app && npm install && npm start
 - Returns probability distribution across rooms defined in metadata
 
 **lib/TrainingData.js** - Training data collector
-- Collects sensor snapshots with room labels
+- Collects sensor snapshots with room labels every ~5 seconds (from inference cycle)
+- Automatically skips consecutive duplicate samples (same room + identical sensor vector)
 - Saves batches to `data/` directory as JSON every 2 minutes
 - Used via web interface to build training datasets
 
