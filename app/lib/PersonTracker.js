@@ -38,8 +38,10 @@ class PersonTracker {
     this.room5 = "na";
     this.room15 = "na";
     this.room120 = "na";
+    this.room0SuperStable = false; // true når room0 har vært stabil i 120+ sekunder
     this.roomHistory = [];  // Array av { room, timestamp } for siste 24 timer
     this.rooms = null; // Will be loaded from model metadata
+    this.coordinator = options.coordinator || null; // RoomTransitionCoordinator
 
     this.emitter = new EventEmitter();
 
@@ -159,6 +161,8 @@ class PersonTracker {
   publishState() {
     if (config.publish && this.room !== null) {
       const activeState = this.deviceStates[this.activeDevice];
+      const lockedDoors = this.coordinator ? this.coordinator.getLockedDoors(this.personId) : {};
+
       activeState.stream.sendMessage(this.personId, {
         room: this.room,
         room0: this.room0,
@@ -166,6 +170,10 @@ class PersonTracker {
         room15: this.room15,
         room120: this.room120,
         activeDevice: this.activeDevice,
+        superStable: this.room0SuperStable, // NY
+        doorLocked: Object.keys(lockedDoors).length > 0, // NY
+        lockedDoors: Object.keys(lockedDoors), // NY
+        pendingTransition: this.room !== this.room0 // NY - viser blokkert overgang
       });
     }
   }
@@ -180,6 +188,7 @@ class PersonTracker {
       this.room0 = room;
       this.room0Confident = false;
       this.room0Stable = false;
+      this.room0SuperStable = false; // Reset også super-stability
       updated = true;
       since = 0;
     }
@@ -197,11 +206,37 @@ class PersonTracker {
       updated = true;
     }
 
-    // Oppdater room når BEGGE betingelser er oppfylt
-    if (this.room0Confident && this.room0Stable && this.room !== room) {
-      this.room = room;
-      this.addRoomHistory(room);
+    // Sjekk super-stabilitet (120 sekunder)
+    if (since > 120 && !this.room0SuperStable) {
+      this.room0SuperStable = true;
       updated = true;
+      if (config.debug) {
+        console.log(`[${this.personId}] room0 is now SUPER-STABLE (120s+)`);
+      }
+    }
+
+    // Oppdater room når BEGGE betingelser er oppfylt OG dør-begrensninger tillater det
+    if (this.room0Confident && this.room0Stable && this.room !== room) {
+      // Sjekk dør-begrensninger før overgang
+      const canMove = !this.coordinator ||
+                      this.coordinator.canTransition(this.personId, this.room, room, this.room0SuperStable);
+
+      if (canMove) {
+        this.room = room;
+        this.addRoomHistory(room);
+
+        // Reset super-stability ved faktisk rombytte
+        this.room0SuperStable = false;
+
+        updated = true;
+      } else {
+        // Overgang blokkert av lukket dør
+        // room0 oppdateres fortsatt, men ikke 'room'
+        if (config.debug) {
+          console.log(`[${this.personId}] Room transition BLOCKED by closed door: ${this.room} → ${room}`);
+        }
+        updated = true; // Publiser state for å vise at room0 har endret seg
+      }
     }
 
     // room15/120 baseres på room0Since
@@ -355,10 +390,17 @@ class PersonTracker {
         this.room0 = "na";
         this.room0Confident = false;
         this.room0Stable = false;
+        this.room0SuperStable = false; // NY
         this.room0Since = now();
         this.room5 = "na";
         this.room15 = "na";
         this.room120 = "na";
+
+        // Fjern låste dører når person forsvinner
+        if (this.coordinator) {
+          this.coordinator.clearLockedDoors(this.personId);
+        }
+
         this.publishState();
       }
       return; // Ikke kjør inference når alle enheter er utilgjengelige

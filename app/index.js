@@ -22,11 +22,49 @@ if (trainingMode) {
 
 let trackers = {};
 let houseState = null;
+let transitionCoordinator = null;
+
 (async () => {
   try {
+    // FØRST: Initialiser HouseStateMachine
+    if (config.house && config.house.doors) {
+      console.log("Initializing HouseStateMachine...");
+      houseState = new HouseStateMachine();
+      await houseState.init();
+
+      // Initialiser transition coordinator
+      if (config.house.transitionConstraintsEnabled) {
+        console.log("Initializing RoomTransitionCoordinator...");
+        const RoomTransitionCoordinator = require("./lib/RoomTransitionCoordinator");
+        transitionCoordinator = new RoomTransitionCoordinator(houseState, config);
+        transitionCoordinator.init();
+
+        // Logg låste tilstander
+        transitionCoordinator.onPersonLocked((event) => {
+          console.log(`[Coordinator] ${event.personId} locked by door ${event.doorId} in ${event.room}`);
+        });
+
+        transitionCoordinator.onPersonUnlocked((event) => {
+          console.log(`[Coordinator] ${event.personId} unlocked`);
+        });
+      }
+
+      if (config.debug) {
+        houseState.onDoorStateChange((event) => {
+          console.log(`[House] Door ${event.doorId}: ${event.state ? 'OPEN' : 'CLOSED'}`);
+        });
+      }
+    } else {
+      console.log("HouseStateMachine disabled (no house config)");
+    }
+
+    // SÅ: Initialiser PersonTrackers med coordinator
     for (const person of config.people) {
-      console.log("Creating tracker for ", person.name, "with", person.devices.length, "device(s)");
-      trackers[person.id] = new PersonTracker(person.devices, person.id, { trainingMode });
+      console.log("Creating tracker for", person.name, "with", person.devices.length, "device(s)");
+      trackers[person.id] = new PersonTracker(person.devices, person.id, {
+        trainingMode,
+        coordinator: transitionCoordinator // Pass coordinator til PersonTracker
+      });
       await trackers[person.id].init();
 
       if (person.id === config.uiPersonId) {
@@ -40,20 +78,6 @@ let houseState = null;
     }
     console.log("All trackers initialized successfully");
 
-    // Initialize HouseStateMachine
-    if (config.house && config.house.doors) {
-      console.log("Initializing HouseStateMachine...");
-      houseState = new HouseStateMachine();
-      await houseState.init();
-
-      if (config.debug) {
-        houseState.onDoorStateChange((event) => {
-          console.log(`[House] Door ${event.doorId}: ${event.state ? 'OPEN' : 'CLOSED'}`);
-        });
-      }
-    } else {
-      console.log("HouseStateMachine disabled (no house config)");
-    }
   } catch (error) {
     console.error("Error initializing trackers:", error);
   }
