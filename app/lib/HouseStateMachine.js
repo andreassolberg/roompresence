@@ -191,8 +191,7 @@ class HouseStateMachine {
       }
     }
 
-    // Check motion sensor staleness (3 minutes = 180 seconds)
-    const motionStalenessThreshold = 180;
+    // Check motion sensor staleness (12 hours, same as doors)
     for (const [sensorId, sensorState] of Object.entries(this.motionStates)) {
       if (sensorState.lastUpdate === 0) {
         // Never received data
@@ -201,7 +200,7 @@ class HouseStateMachine {
 
       const age = currentTime - sensorState.lastUpdate;
       const wasStale = sensorState.stale;
-      const isStale = age > motionStalenessThreshold;
+      const isStale = age > this.stalenessThreshold;
 
       if (isStale !== wasStale) {
         this.motionStates[sensorId].stale = isStale;
