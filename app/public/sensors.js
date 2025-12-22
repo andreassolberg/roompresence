@@ -318,9 +318,9 @@ function renderTimeline(data) {
   const startTime = now - selectedHours * 60 * 60 * 1000;
 
   // Dimensions
-  const margin = { top: 20, right: 20, bottom: 30, left: 150 };
+  const margin = { top: 10, right: 20, bottom: 20, left: 150 };
   const width = container.clientWidth - margin.left - margin.right - 40;
-  const barHeight = 30;
+  const barHeight = 20;
 
   // Time scale
   const xScale = d3.scaleTime()
@@ -346,7 +346,7 @@ function renderTimeline(data) {
 }
 
 function renderSensorTimeline(container, sensorId, history, type, sensorData, xScale, barHeight, tooltip, now, startTime) {
-  const margin = { top: 20, right: 20, bottom: 30, left: 150 };
+  const margin = { top: 10, right: 20, bottom: 20, left: 150 };
   const width = container.clientWidth - margin.left - margin.right - 40;
 
   const row = document.createElement("div");
