@@ -38,15 +38,6 @@ let transitionCoordinator = null;
         const RoomTransitionCoordinator = require("./lib/RoomTransitionCoordinator");
         transitionCoordinator = new RoomTransitionCoordinator(houseState, config);
         transitionCoordinator.init();
-
-        // Logg låste tilstander
-        transitionCoordinator.onPersonLocked((event) => {
-          console.log(`[Coordinator] ${event.personId} locked by door ${event.doorId} in ${event.room}`);
-        });
-
-        transitionCoordinator.onPersonUnlocked((event) => {
-          console.log(`[Coordinator] ${event.personId} unlocked`);
-        });
       }
 
       if (config.debug) {
