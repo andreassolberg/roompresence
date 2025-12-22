@@ -53,9 +53,8 @@ class RoomTransitionCoordinator {
   canTransition(personId, fromRoom, toRoom, isSuperStable) {
     if (!this.enabled) return true;
     if (fromRoom === toRoom) return true;
-    if (fromRoom === "na" || toRoom === "na") return true;
 
-    // Check if destination room is ignored for this person
+    // Check if destination room is ignored for this person (MUST be checked before "na" logic)
     const ignoredRooms = this.personIgnoredRooms[personId];
     if (ignoredRooms && ignoredRooms.has(toRoom)) {
       if (config.debug) {
@@ -63,6 +62,9 @@ class RoomTransitionCoordinator {
       }
       return false;
     }
+
+    // Allow transitions from/to "na" (after ignoredRooms check)
+    if (fromRoom === "na" || toRoom === "na") return true;
 
     // VIKTIG: Dør-begrensninger gjelder KUN for superStable personer
     if (!isSuperStable) {

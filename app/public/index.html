@@ -113,6 +113,179 @@
         font-size: 11px;
         fill: #666;
       }
+
+      /* Person Grid Layout */
+      .person-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+
+      @media (max-width: 768px) {
+        .person-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* Person Card */
+      .person-card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+
+      .person-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        border-bottom: 2px solid #f0f0f0;
+        padding-bottom: 12px;
+      }
+
+      .person-name {
+        font-size: 20px;
+        font-weight: bold;
+        color: #333;
+      }
+
+      /* Room Status Display */
+      .room-status {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+
+      .room-indicator {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border-radius: 6px;
+        font-size: 14px;
+      }
+
+      .room-indicator-label {
+        font-weight: 600;
+        min-width: 100px;
+        color: #666;
+      }
+
+      .room-indicator-value {
+        font-size: 18px;
+        font-weight: bold;
+        flex-grow: 1;
+      }
+
+      /* ML Prediction (room0) */
+      .room0-indicator {
+        background: #e3f2fd;
+        border-left: 4px solid #2196f3;
+      }
+
+      /* Final Room */
+      .room-indicator.final {
+        background: #e8f5e9;
+        border-left: 4px solid #4caf50;
+      }
+
+      /* Pending transition state */
+      .room-indicator.pending {
+        background: #fff3e0;
+        border-left: 4px solid #ff9800;
+        animation: pulse 2s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+      }
+
+      /* Status Badges */
+      .status-badges {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .badge.confident {
+        background: #4caf50;
+        color: white;
+      }
+
+      .badge.stable {
+        background: #2196f3;
+        color: white;
+      }
+
+      .badge.super-stable {
+        background: #9c27b0;
+        color: white;
+      }
+
+      .badge.stale {
+        background: #9e9e9e;
+        color: white;
+      }
+
+      .badge.pending {
+        background: #ff9800;
+        color: white;
+      }
+
+      /* Transition Info */
+      .transition-info {
+        font-size: 12px;
+        color: #666;
+        margin-top: 4px;
+      }
+
+      .transition-arrow {
+        color: #ff9800;
+        font-weight: bold;
+        margin: 0 4px;
+      }
+
+      /* Charts Section */
+      .card-charts {
+        margin-top: 16px;
+      }
+
+      .chart-section {
+        margin-bottom: 16px;
+      }
+
+      .chart-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #555;
+        margin-bottom: 8px;
+      }
+
+      .mini-chart {
+        width: 100%;
+        max-width: 100%;
+      }
+
+      /* Device Info */
+      .device-info {
+        font-size: 11px;
+        color: #999;
+        margin-top: 8px;
+      }
     </style>
     <title>Room Presence Monitor</title>
   </head>
@@ -123,9 +296,8 @@
       <a href="/history.html" class="nav-link">Room History</a> |
       <a href="/sensors.html" class="nav-link">House Sensors</a>
     </p>
-    <div style="background: #e3f2fd; padding: 10px; margin-bottom: 20px; border-radius: 5px;">
-      <strong>Tracking:</strong>
-      <select id="person-select"></select>
+    <div id="person-grid" class="person-grid">
+      <!-- Person cards will be dynamically generated here -->
     </div>
     <div id="training-section">
       <h2>Training Mode</h2>

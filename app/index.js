@@ -129,6 +129,33 @@ apiRouter.get("/history", (req, res) => {
   res.json(history);
 });
 
+apiRouter.get("/room-states", (req, res) => {
+  const states = {};
+  for (const [personId, tracker] of Object.entries(trackers)) {
+    const person = config.people.find(p => p.id === personId);
+    const predictions = tracker.getPredictions() || [];
+    const sensors = tracker.getSensordataProcessed();
+
+    const secondsSince = Math.floor((Date.now() / 1000) - tracker.room0Since);
+
+    states[personId] = {
+      name: person?.name || personId,
+      room: tracker.room,
+      room0: tracker.room0,
+      room0Since: tracker.room0Since,
+      room0Confident: tracker.room0Confident,
+      room0Stable: tracker.room0Stable,
+      room0SuperStable: tracker.room0SuperStable,
+      secondsSinceChange: secondsSince,
+      activeDevice: tracker.activeDevice,
+      predictions: predictions.slice(0, 5),
+      sensors: sensors,
+      hasPendingTransition: tracker.room !== tracker.room0
+    };
+  }
+  res.json(states);
+});
+
 apiRouter.get("/status", (req, res) => {
   res.json({
     trainingEnabled: trainingMode,

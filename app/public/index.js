@@ -1,10 +1,10 @@
 // State
-let selectedPersonId = null;
 let activeTab = "charts";
+let allPeople = {}; // Store all people data
 
-// History buffers for sparklines
-const sensorHistory = {}; // { room: [values...] }
-const inferenceHistory = {}; // { room: [values...] }
+// History buffers for sparklines - now keyed by personId
+const sensorHistory = {}; // { personId: { room: [values...] } }
+const inferenceHistory = {}; // { personId: { room: [values...] } }
 const historyLength = 30; // Keep last 30 data points
 
 // Chart dimensions
@@ -71,6 +71,16 @@ async function fetchPredictions() {
   }
 }
 
+async function fetchRoomStates() {
+  try {
+    const response = await fetch("/api/room-states");
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching room states:", error);
+    return {};
+  }
+}
+
 // Tab logic
 function initTabs() {
   const tabs = document.querySelectorAll(".tab");
@@ -99,46 +109,29 @@ function setActiveTab(tabName) {
   updateData();
 }
 
-// Person selector
-async function initPersonSelector(defaultPersonId) {
-  const select = document.querySelector("#person-select");
-  const people = await fetchPeople();
+// Person selector - REMOVED (now showing all people in cards)
 
-  people.forEach((person) => {
-    const option = document.createElement("option");
-    option.value = person.id;
-    option.textContent = person.name || person.id;
-    if (person.id === defaultPersonId) {
-      option.selected = true;
-    }
-    select.appendChild(option);
-  });
-
-  selectedPersonId = defaultPersonId;
-
-  select.addEventListener("change", (e) => {
-    selectedPersonId = e.target.value;
-    // Clear sparkline history when switching person
-    Object.keys(sensorHistory).forEach(key => delete sensorHistory[key]);
-    Object.keys(inferenceHistory).forEach(key => delete inferenceHistory[key]);
-    updateData();
-  });
-}
-
-// Update history buffer
-function updateHistory(history, key, value) {
-  if (!history[key]) {
-    history[key] = [];
+// Update history buffer for person-specific tracking
+function updatePersonHistory(history, personId, room, value) {
+  if (!history[personId]) {
+    history[personId] = {};
   }
-  history[key].push(value);
-  if (history[key].length > historyLength) {
-    history[key].shift();
+  if (!history[personId][room]) {
+    history[personId][room] = [];
+  }
+  history[personId][room].push(value);
+  if (history[personId][room].length > historyLength) {
+    history[personId][room].shift();
   }
 }
 
-// Render sparkline
-function renderSparkline(g, history, x, y, width, height, maxValue, color) {
-  if (!history || history.length < 2) return;
+// Render sparkline for person-specific history
+function renderPersonSparkline(history, personId, room, x, y, width, height, maxValue) {
+  if (!history[personId] || !history[personId][room] || history[personId][room].length < 2) {
+    return null;
+  }
+
+  const data = history[personId][room];
 
   const xScale = d3.scaleLinear()
     .domain([0, historyLength - 1])
@@ -149,68 +142,67 @@ function renderSparkline(g, history, x, y, width, height, maxValue, color) {
     .range([height, 0]);
 
   const line = d3.line()
-    .x((d, i) => x + xScale(i + (historyLength - history.length)))
+    .x((d, i) => x + xScale(i + (historyLength - data.length)))
     .y((d) => y + yScale(d))
     .curve(d3.curveMonotoneX);
 
-  return line(history);
+  return line(data);
 }
 
-// D3.js Bar Chart for Sensors
-function renderSensorsChart(data) {
-  const svg = d3.select("#sensors-chart");
-  const chartHeight = data.length * (barHeight + barGap);
+// D3.js Bar Chart for Sensors (person-specific)
+function renderPersonSensorChart(personId, sensorData) {
+  if (!sensorData || sensorData.length === 0) return;
+
+  const svgId = `sensors-chart-${personId}`;
+  const svg = d3.select(`#${svgId}`);
+  const miniChartWidth = 400;
+  const miniBarHeight = 18;
+  const miniBarGap = 3;
+  const miniSparklineWidth = 50;
+  const miniChartMargin = { top: 5, right: 40, bottom: 5, left: 80 + miniSparklineWidth };
+  const chartHeight = sensorData.length * (miniBarHeight + miniBarGap);
 
   svg
-    .attr("width", chartWidth + chartMargin.left + chartMargin.right)
-    .attr("height", chartHeight + chartMargin.top + chartMargin.bottom);
+    .attr("width", miniChartWidth + miniChartMargin.left + miniChartMargin.right)
+    .attr("height", chartHeight + miniChartMargin.top + miniChartMargin.bottom);
 
   // Update history
-  data.forEach((d) => updateHistory(sensorHistory, d.room, d.value));
+  sensorData.forEach((d) => updatePersonHistory(sensorHistory, personId, d.room, d.value));
 
   // Create scales
-  const xScale = d3.scaleLinear().domain([0, 10]).range([0, chartWidth]);
-
-  const yScale = d3
-    .scaleBand()
-    .domain(data.map((d) => d.room))
+  const xScale = d3.scaleLinear().domain([0, 10]).range([0, miniChartWidth]);
+  const yScale = d3.scaleBand()
+    .domain(sensorData.map((d) => d.room))
     .range([0, chartHeight])
     .padding(0.15);
 
   // Get or create main group
   let g = svg.select("g.chart-group");
   if (g.empty()) {
-    g = svg
-      .append("g")
+    g = svg.append("g")
       .attr("class", "chart-group")
-      .attr("transform", `translate(${chartMargin.left},${chartMargin.top})`);
+      .attr("transform", `translate(${miniChartMargin.left},${miniChartMargin.top})`);
   }
 
   // Sparklines
-  const sparklines = g.selectAll("path.sparkline").data(data, (d) => d.room);
-
-  sparklines
-    .enter()
+  const sparklines = g.selectAll("path.sparkline").data(sensorData, (d) => d.room);
+  sparklines.enter()
     .append("path")
     .attr("class", "sparkline")
     .attr("fill", "none")
-    .attr("stroke-width", 1.5)
+    .attr("stroke-width", 1.2)
     .merge(sparklines)
     .attr("stroke", (d) => (d.fresh ? "#4caf50" : "#9e9e9e"))
-    .attr("d", (d) => renderSparkline(
-      g, sensorHistory[d.room],
-      -sparklineWidth - 8, yScale(d.room),
-      sparklineWidth, yScale.bandwidth(),
-      10, d.fresh ? "#4caf50" : "#9e9e9e"
+    .attr("d", (d) => renderPersonSparkline(
+      sensorHistory, personId, d.room,
+      -miniSparklineWidth - 6, yScale(d.room),
+      miniSparklineWidth, yScale.bandwidth(), 10
     ));
-
   sparklines.exit().remove();
 
   // Bars
-  const bars = g.selectAll("rect.bar").data(data, (d) => d.room);
-
-  bars
-    .enter()
+  const bars = g.selectAll("rect.bar").data(sensorData, (d) => d.room);
+  bars.enter()
     .append("rect")
     .attr("class", "bar")
     .attr("x", 0)
@@ -224,79 +216,79 @@ function renderSensorsChart(data) {
     .attr("y", (d) => yScale(d.room))
     .attr("width", (d) => xScale(d.value))
     .attr("fill", (d) => (d.fresh ? "#4caf50" : "#9e9e9e"));
-
   bars.exit().remove();
 
-  // Labels (room names)
-  const labels = g.selectAll("text.bar-label").data(data, (d) => d.room);
-
-  labels
-    .enter()
+  // Labels
+  const labels = g.selectAll("text.bar-label").data(sensorData, (d) => d.room);
+  labels.enter()
     .append("text")
     .attr("class", "bar-label")
-    .attr("x", -sparklineWidth - 16)
+    .attr("x", -miniSparklineWidth - 10)
     .attr("text-anchor", "end")
     .attr("dominant-baseline", "middle")
+    .attr("font-size", "11px")
     .merge(labels)
     .transition()
     .duration(300)
     .attr("y", (d) => yScale(d.room) + yScale.bandwidth() / 2)
     .text((d) => d.room);
-
   labels.exit().remove();
 
   // Values
-  const values = g.selectAll("text.bar-value").data(data, (d) => d.room);
-
-  values
-    .enter()
+  const values = g.selectAll("text.bar-value").data(sensorData, (d) => d.room);
+  values.enter()
     .append("text")
     .attr("class", "bar-value")
     .attr("dominant-baseline", "middle")
+    .attr("font-size", "10px")
     .merge(values)
     .transition()
     .duration(300)
-    .attr("x", (d) => xScale(d.value) + 8)
+    .attr("x", (d) => xScale(d.value) + 6)
     .attr("y", (d) => yScale(d.room) + yScale.bandwidth() / 2)
     .text((d) => d.value.toFixed(1));
-
   values.exit().remove();
 }
 
-// D3.js Bar Chart for Inference
-function renderInferenceChart(data) {
-  if (!data || data.length === 0) return;
+// D3.js Bar Chart for Inference (person-specific)
+function renderPersonInferenceChart(personId, predictions) {
+  if (!predictions || predictions.length === 0) return;
 
-  const svg = d3.select("#inference-chart");
-  const chartHeight = data.length * (barHeight + barGap);
+  const svgId = `inference-chart-${personId}`;
+  const svg = d3.select(`#${svgId}`);
+  const miniChartWidth = 400;
+  const miniBarHeight = 18;
+  const miniBarGap = 3;
+  const miniSparklineWidth = 50;
+  const miniChartMargin = { top: 5, right: 40, bottom: 5, left: 80 + miniSparklineWidth };
+
+  // Limit to top 5 predictions
+  const topPredictions = predictions.slice(0, 5);
+  const chartHeight = topPredictions.length * (miniBarHeight + miniBarGap);
 
   svg
-    .attr("width", chartWidth + chartMargin.left + chartMargin.right)
-    .attr("height", chartHeight + chartMargin.top + chartMargin.bottom);
+    .attr("width", miniChartWidth + miniChartMargin.left + miniChartMargin.right)
+    .attr("height", chartHeight + miniChartMargin.top + miniChartMargin.bottom);
 
   // Update history (store percentage values)
-  data.forEach((d) => updateHistory(inferenceHistory, d.room, d.value * 100));
+  topPredictions.forEach((d) => updatePersonHistory(inferenceHistory, personId, d.room, d.value * 100));
 
   // Create scales (0-100%)
-  const xScale = d3.scaleLinear().domain([0, 100]).range([0, chartWidth]);
-
-  const yScale = d3
-    .scaleBand()
-    .domain(data.map((d) => d.room))
+  const xScale = d3.scaleLinear().domain([0, 100]).range([0, miniChartWidth]);
+  const yScale = d3.scaleBand()
+    .domain(topPredictions.map((d) => d.room))
     .range([0, chartHeight])
     .padding(0.15);
 
   // Get or create main group
   let g = svg.select("g.chart-group");
   if (g.empty()) {
-    g = svg
-      .append("g")
+    g = svg.append("g")
       .attr("class", "chart-group")
-      .attr("transform", `translate(${chartMargin.left},${chartMargin.top})`);
+      .attr("transform", `translate(${miniChartMargin.left},${miniChartMargin.top})`);
   }
 
-  // Convert values to percentage and find best
-  const processedData = data.map((d, i) => ({
+  const processedData = topPredictions.map((d, i) => ({
     ...d,
     percent: d.value * 100,
     isBest: i === 0,
@@ -304,29 +296,23 @@ function renderInferenceChart(data) {
 
   // Sparklines
   const sparklines = g.selectAll("path.sparkline").data(processedData, (d) => d.room);
-
-  sparklines
-    .enter()
+  sparklines.enter()
     .append("path")
     .attr("class", "sparkline")
     .attr("fill", "none")
-    .attr("stroke-width", 1.5)
+    .attr("stroke-width", 1.2)
     .merge(sparklines)
     .attr("stroke", (d) => (d.isBest ? "#4caf50" : "#2196f3"))
-    .attr("d", (d) => renderSparkline(
-      g, inferenceHistory[d.room],
-      -sparklineWidth - 8, yScale(d.room),
-      sparklineWidth, yScale.bandwidth(),
-      100, d.isBest ? "#4caf50" : "#2196f3"
+    .attr("d", (d) => renderPersonSparkline(
+      inferenceHistory, personId, d.room,
+      -miniSparklineWidth - 6, yScale(d.room),
+      miniSparklineWidth, yScale.bandwidth(), 100
     ));
-
   sparklines.exit().remove();
 
   // Bars
   const bars = g.selectAll("rect.bar").data(processedData, (d) => d.room);
-
-  bars
-    .enter()
+  bars.enter()
     .append("rect")
     .attr("class", "bar")
     .attr("x", 0)
@@ -340,58 +326,232 @@ function renderInferenceChart(data) {
     .attr("y", (d) => yScale(d.room))
     .attr("width", (d) => xScale(d.percent))
     .attr("fill", (d) => (d.isBest ? "#4caf50" : "#2196f3"));
-
   bars.exit().remove();
 
-  // Labels (room names)
+  // Labels
   const labels = g.selectAll("text.bar-label").data(processedData, (d) => d.room);
-
-  labels
-    .enter()
+  labels.enter()
     .append("text")
     .attr("class", "bar-label")
-    .attr("x", -sparklineWidth - 16)
+    .attr("x", -miniSparklineWidth - 10)
     .attr("text-anchor", "end")
     .attr("dominant-baseline", "middle")
+    .attr("font-size", "11px")
     .merge(labels)
     .transition()
     .duration(300)
     .attr("y", (d) => yScale(d.room) + yScale.bandwidth() / 2)
     .text((d) => d.room);
-
   labels.exit().remove();
 
-  // Values (percentage)
+  // Values
   const values = g.selectAll("text.bar-value").data(processedData, (d) => d.room);
-
-  values
-    .enter()
+  values.enter()
     .append("text")
     .attr("class", "bar-value")
     .attr("dominant-baseline", "middle")
+    .attr("font-size", "10px")
     .merge(values)
     .transition()
     .duration(300)
-    .attr("x", (d) => xScale(d.percent) + 8)
+    .attr("x", (d) => xScale(d.percent) + 6)
     .attr("y", (d) => yScale(d.room) + yScale.bandwidth() / 2)
     .text((d) => `${d.percent.toFixed(0)}%`);
-
   values.exit().remove();
+}
+
+// Render person card HTML
+function renderPersonCard(personId, personData) {
+  // Create status badges HTML
+  let badges = '';
+  if (personData.room0Confident) {
+    badges += '<span class="badge confident">Confident</span>';
+  }
+  if (personData.room0Stable) {
+    badges += '<span class="badge stable">Stable</span>';
+  }
+  if (personData.room0SuperStable) {
+    badges += '<span class="badge super-stable">Super Stable</span>';
+  }
+  if (personData.room === "na" && personData.room0 === "na") {
+    badges += '<span class="badge stale">No Data</span>';
+  }
+  if (personData.hasPendingTransition) {
+    badges += '<span class="badge pending">Pending</span>';
+  }
+
+  // Transition info
+  let transitionInfo = '';
+  if (personData.hasPendingTransition && personData.room !== "na" && personData.room0 !== "na") {
+    transitionInfo = `
+      <div class="transition-info">
+        Transition: ${personData.room} <span class="transition-arrow">→</span> ${personData.room0}
+        (${personData.secondsSinceChange}s)
+      </div>
+    `;
+  }
+
+  // Device info
+  const deviceInfo = personData.activeDevice
+    ? `<div class="device-info">Active: ${personData.activeDevice}</div>`
+    : '';
+
+  return `
+    <div class="person-card" id="card-${personId}">
+      <div class="person-card-header">
+        <div class="person-name">${personData.name}</div>
+      </div>
+
+      <div class="room-status">
+        <div class="room-indicator room0-indicator ${personData.hasPendingTransition ? 'pending' : ''}">
+          <span class="room-indicator-label">ML Prediction</span>
+          <span class="room-indicator-value">${personData.room0}</span>
+        </div>
+
+        <div class="room-indicator final">
+          <span class="room-indicator-label">Current Room</span>
+          <span class="room-indicator-value">${personData.room}</span>
+        </div>
+      </div>
+
+      <div class="status-badges">
+        ${badges}
+      </div>
+
+      ${transitionInfo}
+      ${deviceInfo}
+
+      <div class="card-charts">
+        <div class="chart-section">
+          <div class="chart-title">Sensor Distances</div>
+          <svg id="sensors-chart-${personId}" class="mini-chart"></svg>
+        </div>
+        <div class="chart-section">
+          <div class="chart-title">Top Predictions</div>
+          <svg id="inference-chart-${personId}" class="mini-chart"></svg>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Update person card (for incremental updates)
+function updatePersonCard(personId, personData) {
+  const card = document.getElementById(`card-${personId}`);
+  if (!card) return;
+
+  // Update room0
+  const room0El = card.querySelector('.room0-indicator .room-indicator-value');
+  if (room0El) room0El.textContent = personData.room0;
+
+  // Update room
+  const roomEl = card.querySelector('.final .room-indicator-value');
+  if (roomEl) roomEl.textContent = personData.room;
+
+  // Update pending state
+  const room0Indicator = card.querySelector('.room0-indicator');
+  if (room0Indicator) {
+    if (personData.hasPendingTransition) {
+      room0Indicator.classList.add('pending');
+    } else {
+      room0Indicator.classList.remove('pending');
+    }
+  }
+
+  // Update badges
+  let badges = '';
+  if (personData.room0Confident) {
+    badges += '<span class="badge confident">Confident</span>';
+  }
+  if (personData.room0Stable) {
+    badges += '<span class="badge stable">Stable</span>';
+  }
+  if (personData.room0SuperStable) {
+    badges += '<span class="badge super-stable">Super Stable</span>';
+  }
+  if (personData.room === "na" && personData.room0 === "na") {
+    badges += '<span class="badge stale">No Data</span>';
+  }
+  if (personData.hasPendingTransition) {
+    badges += '<span class="badge pending">Pending</span>';
+  }
+
+  const badgesEl = card.querySelector('.status-badges');
+  if (badgesEl) badgesEl.innerHTML = badges;
+
+  // Update transition info
+  let transitionInfo = '';
+  if (personData.hasPendingTransition && personData.room !== "na" && personData.room0 !== "na") {
+    transitionInfo = `
+      Transition: ${personData.room} <span class="transition-arrow">→</span> ${personData.room0}
+      (${personData.secondsSinceChange}s)
+    `;
+  }
+
+  const existingTransitionInfo = card.querySelector('.transition-info');
+  if (transitionInfo && !existingTransitionInfo) {
+    const badgesContainer = card.querySelector('.status-badges');
+    badgesContainer.insertAdjacentHTML('afterend', `<div class="transition-info">${transitionInfo}</div>`);
+  } else if (existingTransitionInfo) {
+    if (transitionInfo) {
+      existingTransitionInfo.innerHTML = transitionInfo;
+    } else {
+      existingTransitionInfo.remove();
+    }
+  }
+}
+
+// Render all person cards
+async function renderAllPersonCards() {
+  const roomStates = await fetchRoomStates();
+  const grid = document.getElementById("person-grid");
+
+  if (!grid) {
+    console.error("Person grid container not found");
+    return;
+  }
+
+  const personIds = Object.keys(roomStates).sort();
+
+  // Render or update cards
+  for (const personId of personIds) {
+    const personData = roomStates[personId];
+    const existingCard = document.getElementById(`card-${personId}`);
+
+    if (!existingCard) {
+      // Create new card
+      const cardHTML = renderPersonCard(personId, personData);
+      grid.insertAdjacentHTML('beforeend', cardHTML);
+    } else {
+      // Update existing card
+      updatePersonCard(personId, personData);
+    }
+
+    // Render charts using data from roomStates
+    if (personData.sensors && personData.predictions) {
+      renderPersonSensorChart(personId, personData.sensors);
+      renderPersonInferenceChart(personId, personData.predictions);
+    }
+  }
+
+  // Remove cards for people no longer in config
+  const existingCards = grid.querySelectorAll('.person-card');
+  existingCards.forEach(card => {
+    const cardId = card.id.replace('card-', '');
+    if (!personIds.includes(cardId)) {
+      card.remove();
+    }
+  });
 }
 
 // Update data based on active tab
 async function updateData() {
   if (activeTab === "raw") {
-    const data = await fetchSensordata();
+    const data = await fetchRoomStates();
     const sensorDataElement = document.querySelector("#sensordata");
     sensorDataElement.textContent = JSON.stringify(data, null, 2);
   } else if (activeTab === "charts") {
-    const [sensorData, predictions] = await Promise.all([
-      fetchSensordata(),
-      fetchPredictions()
-    ]);
-    renderSensorsChart(sensorData);
-    renderInferenceChart(predictions);
+    await renderAllPersonCards();
   }
 }
 
@@ -548,9 +708,6 @@ async function initializeUI() {
     console.error("Failed to load application status");
     return;
   }
-
-  // Initialize person selector with default from config
-  await initPersonSelector(status.personId);
 
   // Initialize tabs
   initTabs();
