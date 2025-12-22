@@ -93,9 +93,9 @@ function renderCurrentStatus(doors) {
 
     card.className = `door-card ${stateClass}${staleClass}`;
 
-    // Format timestamp
+    // Format timestamp (door.lastUpdate is in seconds, Date expects milliseconds)
     const timeStr = door.lastUpdate > 0
-      ? new Date(door.lastUpdate).toLocaleString()
+      ? new Date(door.lastUpdate * 1000).toLocaleString()
       : "Never";
 
     card.innerHTML = `
