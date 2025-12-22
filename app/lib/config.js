@@ -40,6 +40,21 @@ try {
       if (!person.devices || person.devices.length === 0) {
         throw new Error(`Person ${person.id} must have at least one device`);
       }
+
+      // Validate ignoredRooms field
+      if (person.ignoredRooms) {
+        if (!Array.isArray(person.ignoredRooms)) {
+          throw new Error(`Person ${person.id}: ignoredRooms must be an array`);
+        }
+        // Validate that ignored rooms exist in rooms list
+        for (const room of person.ignoredRooms) {
+          if (!config.rooms.includes(room)) {
+            console.warn(`Warning: Person ${person.id} has ignored room "${room}" which is not in rooms list`);
+          }
+        }
+      } else {
+        person.ignoredRooms = []; // Default to empty array
+      }
     }
   }
 

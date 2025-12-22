@@ -2,12 +2,18 @@ const EventEmitter = require("events");
 const config = require("./config");
 
 class RoomTransitionCoordinator {
-  constructor(houseStateMachine, appConfig) {
+  constructor(houseStateMachine, appConfig, peopleConfig = []) {
     this.houseState = houseStateMachine;
     this.config = appConfig.house || {};
     this.enabled = this.config.transitionConstraintsEnabled || false;
     this.doorToRooms = this.config.doorRoomMappings || {};
     this.emitter = new EventEmitter();
+
+    // Build person-specific ignored rooms map
+    this.personIgnoredRooms = {};
+    for (const person of peopleConfig) {
+      this.personIgnoredRooms[person.id] = new Set(person.ignoredRooms || []);
+    }
 
     // Per-person locked state: { personId: { lockedDoors: { doorId: timestamp } } }
     this.personStates = {};
@@ -41,6 +47,15 @@ class RoomTransitionCoordinator {
     if (!this.enabled) return true;
     if (fromRoom === toRoom) return true;
     if (fromRoom === "na" || toRoom === "na") return true;
+
+    // Check if destination room is ignored for this person
+    const ignoredRooms = this.personIgnoredRooms[personId];
+    if (ignoredRooms && ignoredRooms.has(toRoom)) {
+      if (config.debug) {
+        console.log(`[Coordinator] BLOCKED: ${personId} cannot move to ignored room: ${fromRoom} → ${toRoom}`);
+      }
+      return false;
+    }
 
     // VIKTIG: Dør-begrensninger gjelder KUN for superStable personer
     if (!isSuperStable) {

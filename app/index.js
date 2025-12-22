@@ -36,7 +36,7 @@ let transitionCoordinator = null;
       if (config.house.transitionConstraintsEnabled) {
         console.log("Initializing RoomTransitionCoordinator...");
         const RoomTransitionCoordinator = require("./lib/RoomTransitionCoordinator");
-        transitionCoordinator = new RoomTransitionCoordinator(houseState, config);
+        transitionCoordinator = new RoomTransitionCoordinator(houseState, config, config.people);
         transitionCoordinator.init();
       }
 
