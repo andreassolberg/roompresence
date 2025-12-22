@@ -17,8 +17,25 @@ class HouseStateMachine {
     // Staleness threshold in seconds (12 hours for door sensors - only send on state change)
     this.stalenessThreshold = 43200; // 12 hours = 12 * 60 * 60
 
-    // Extensibility: future sensor types
+    // Motion sensor states: { sensorId: { state, lastUpdate, lastMotionTime, stale, name } }
     this.motionStates = {};
+    this.motionHistory = {};
+
+    // Initialize motion sensors from config
+    if (config.house && config.house.motionSensors) {
+      for (const sensor of config.house.motionSensors) {
+        this.motionStates[sensor.id] = {
+          state: null,
+          lastUpdate: 0,
+          lastMotionTime: 0, // Track when motion was last TRUE
+          stale: true,
+          name: sensor.name || sensor.id
+        };
+        this.motionHistory[sensor.id] = [];
+      }
+    }
+
+    // Future extensibility
     this.temperatureStates = {};
 
     // HomieListener instance
@@ -53,6 +70,14 @@ class HouseStateMachine {
       this.homieListener.subscribeToDoor(door.id);
     }
 
+    // Subscribe to all configured motion sensors
+    if (config.house.motionSensors) {
+      for (const sensor of config.house.motionSensors) {
+        this.subscribeToMotionSensor(sensor.id);
+        console.log(`  - Motion sensor: ${sensor.id} (${sensor.name || sensor.id})`);
+      }
+    }
+
     // Register data handler
     this.homieListener.onData((data) => {
       this.handleSensorData(data);
@@ -65,6 +90,10 @@ class HouseStateMachine {
 
     this.ready = true;
     console.log("HouseStateMachine initialized successfully");
+  }
+
+  subscribeToMotionSensor(sensorId) {
+    this.homieListener.subscribeToMotionSensor(sensorId);
   }
 
   handleSensorData(data) {
@@ -99,8 +128,33 @@ class HouseStateMachine {
       }
     }
 
-    // Future: Handle motion sensors
-    // if (property === "motion" && this.motionStates[nodeId]) { ... }
+    // Handle motion sensors
+    if (property === "alarm-motion" && this.motionStates[nodeId]) {
+      const previousState = this.motionStates[nodeId].state;
+
+      this.motionStates[nodeId].state = value;
+      this.motionStates[nodeId].lastUpdate = now();
+      this.motionStates[nodeId].stale = false;
+
+      // CRITICAL: Update lastMotionTime only when motion is detected
+      if (value === true) {
+        this.motionStates[nodeId].lastMotionTime = now();
+      }
+
+      // Only add to history if state actually changed
+      if (previousState !== value && value !== null) {
+        console.log(`[House] Motion sensor ${nodeId}: ${value ? 'ACTIVE' : 'INACTIVE'}`);
+        this.addMotionHistory(nodeId, value);
+
+        // Emit state change event
+        this.emitter.emit("motionSensorStateChange", {
+          sensorId: nodeId,
+          state: value,
+          previousState,
+          timestamp: Date.now()
+        });
+      }
+    }
   }
 
   addDoorHistory(doorId, state) {
@@ -116,6 +170,7 @@ class HouseStateMachine {
   checkStaleness() {
     const currentTime = now();
 
+    // Check door sensor staleness (12 hours)
     for (const [doorId, doorState] of Object.entries(this.doorStates)) {
       if (doorState.lastUpdate === 0) {
         // Never received data
@@ -132,6 +187,30 @@ class HouseStateMachine {
         if (isStale) {
           console.warn(`Door ${doorId} is now stale (no updates for ${age}s)`);
           this.emitter.emit("doorStale", { doorId, age });
+        }
+      }
+    }
+
+    // Check motion sensor staleness (3 minutes = 180 seconds)
+    const motionStalenessThreshold = 180;
+    for (const [sensorId, sensorState] of Object.entries(this.motionStates)) {
+      if (sensorState.lastUpdate === 0) {
+        // Never received data
+        continue;
+      }
+
+      const age = currentTime - sensorState.lastUpdate;
+      const wasStale = sensorState.stale;
+      const isStale = age > motionStalenessThreshold;
+
+      if (isStale !== wasStale) {
+        this.motionStates[sensorId].stale = isStale;
+
+        if (isStale) {
+          console.warn(`[House] Motion sensor ${sensorId} is now stale (${age}s since last update)`);
+          this.emitter.emit("motionSensorStale", { sensorId, age });
+        } else {
+          console.log(`[House] Motion sensor ${sensorId} is now fresh`);
         }
       }
     }
@@ -155,6 +234,35 @@ class HouseStateMachine {
     return { ...this.doorHistory };
   }
 
+  // Motion sensor public API methods
+
+  getMotionSensorState(sensorId) {
+    return this.motionStates[sensorId] || null;
+  }
+
+  getMotionSensorStates() {
+    return { ...this.motionStates };
+  }
+
+  getMotionSensorHistory(sensorId) {
+    return this.motionHistory[sensorId] || [];
+  }
+
+  addMotionHistory(sensorId, state) {
+    const timestamp = Date.now();
+    const cutoff = timestamp - 24 * 60 * 60 * 1000; // 24 hours
+
+    if (!this.motionHistory[sensorId]) {
+      this.motionHistory[sensorId] = [];
+    }
+
+    this.motionHistory[sensorId].push({ state, timestamp });
+
+    // Remove entries older than 24 hours
+    this.motionHistory[sensorId] = this.motionHistory[sensorId]
+      .filter(h => h.timestamp > cutoff);
+  }
+
   // Event listener registration
   onDoorStateChange(callback) {
     this.emitter.on("doorStateChange", callback);
@@ -162,6 +270,14 @@ class HouseStateMachine {
 
   onDoorStale(callback) {
     this.emitter.on("doorStale", callback);
+  }
+
+  onMotionSensorStateChange(callback) {
+    this.emitter.on("motionSensorStateChange", callback);
+  }
+
+  onMotionSensorStale(callback) {
+    this.emitter.on("motionSensorStale", callback);
   }
 
   // Cleanup

@@ -1,5 +1,6 @@
 const EventEmitter = require("events");
 const config = require("./config");
+const { now } = require("./utils");
 
 class RoomTransitionCoordinator {
   constructor(houseStateMachine, appConfig, peopleConfig = []) {
@@ -7,6 +8,7 @@ class RoomTransitionCoordinator {
     this.config = appConfig.house || {};
     this.enabled = this.config.transitionConstraintsEnabled || false;
     this.doorToRooms = this.config.doorRoomMappings || {};
+    this.motionSensorToRooms = this.config.motionSensorRoomMappings || {};
     this.emitter = new EventEmitter();
 
     // Build person-specific ignored rooms map
@@ -15,7 +17,7 @@ class RoomTransitionCoordinator {
       this.personIgnoredRooms[person.id] = new Set(person.ignoredRooms || []);
     }
 
-    // Per-person locked state: { personId: { lockedDoors: { doorId: timestamp } } }
+    // Per-person locked state: { personId: { lockedDoors: {...}, lockedMotionSensors: {...} } }
     this.personStates = {};
   }
 
@@ -31,6 +33,11 @@ class RoomTransitionCoordinator {
     if (this.houseState) {
       this.houseState.onDoorStateChange((event) => {
         this.handleDoorStateChange(event);
+      });
+
+      // Lytt til motion sensor-tilstandsendringer
+      this.houseState.onMotionSensorStateChange((event) => {
+        this.handleMotionSensorStateChange(event);
       });
     }
   }
@@ -94,8 +101,37 @@ class RoomTransitionCoordinator {
       return false;
     }
 
-    // Alle dører er åpne → tillat overgang
+    // Gate 7: Motion sensor constraints
+    const crossingMotionSensors = this.findCrossingMotionSensors(fromRoom, toRoom);
+
+    if (crossingMotionSensors.length > 0) {
+      const blockingMotionSensors = [];
+
+      for (const sensorId of crossingMotionSensors) {
+        const sensorState = this.houseState.getMotionSensorState(sensorId);
+
+        // Safety-first: stale/unknown sensorer blokkerer IKKE
+        if (!sensorState || sensorState.stale || sensorState.state === null) {
+          continue;
+        }
+
+        // Blokkerer hvis motion har vært inaktiv i 120+ sekunder
+        const inactiveTime = now() - sensorState.lastMotionTime;
+        if (sensorState.state === false && inactiveTime > 120) {
+          blockingMotionSensors.push(sensorId);
+        }
+      }
+
+      if (blockingMotionSensors.length > 0) {
+        this.trackLockedMotionSensors(personId, fromRoom, blockingMotionSensors);
+        console.log(`[Coordinator] BLOCKED: ${personId} cannot move ${fromRoom} → ${toRoom} (inactive motion sensors: ${blockingMotionSensors.join(', ')})`);
+        return false;
+      }
+    }
+
+    // Alle constraints passert → tillat overgang
     this.clearLockedDoors(personId);
+    this.clearLockedMotionSensors(personId);
     return true;
   }
 
@@ -202,6 +238,23 @@ class RoomTransitionCoordinator {
   }
 
   /**
+   * Finn motion sensorer som beskytter overgang mellom to rom
+   */
+  findCrossingMotionSensors(room1, room2) {
+    const sensors = [];
+    for (const [sensorId, protectedZone] of Object.entries(this.motionSensorToRooms)) {
+      const room1InZone = protectedZone.includes(room1);
+      const room2InZone = protectedZone.includes(room2);
+
+      // Sensor er relevant hvis vi krysser zone-grensen
+      if (room1InZone !== room2InZone) {
+        sensors.push(sensorId);
+      }
+    }
+    return sensors;
+  }
+
+  /**
    * Spor at person er låst bak lukkede dører
    */
   trackLockedDoors(personId, room, doorIds) {
@@ -238,6 +291,52 @@ class RoomTransitionCoordinator {
   }
 
   /**
+   * Spor at person er låst bak inaktive motion sensorer
+   */
+  trackLockedMotionSensors(personId, room, sensorIds) {
+    if (!this.personStates[personId]) {
+      this.personStates[personId] = {
+        lockedDoors: {},
+        lockedMotionSensors: {},
+        currentRoom: room
+      };
+    }
+
+    if (!this.personStates[personId].lockedMotionSensors) {
+      this.personStates[personId].lockedMotionSensors = {};
+    }
+
+    const timestamp = Date.now();
+    for (const sensorId of sensorIds) {
+      if (!this.personStates[personId].lockedMotionSensors[sensorId]) {
+        this.personStates[personId].lockedMotionSensors[sensorId] = timestamp;
+        console.log(`[Coordinator] ${personId} locked by motion sensor ${sensorId} in ${room}`);
+        this.emitter.emit("personLockedByMotion", { personId, sensorId, room, timestamp });
+      }
+    }
+  }
+
+  /**
+   * Fjern alle låste motion sensorer for en person
+   */
+  clearLockedMotionSensors(personId) {
+    if (this.personStates[personId] &&
+        this.personStates[personId].lockedMotionSensors &&
+        Object.keys(this.personStates[personId].lockedMotionSensors).length > 0) {
+      console.log(`[Coordinator] ${personId} unlocked from motion sensors`);
+      this.personStates[personId].lockedMotionSensors = {};
+      this.emitter.emit("personUnlockedFromMotion", { personId });
+    }
+  }
+
+  /**
+   * Hent låste motion sensorer for en person
+   */
+  getLockedMotionSensors(personId) {
+    return this.personStates[personId]?.lockedMotionSensors || {};
+  }
+
+  /**
    * Håndter dør-tilstandsendringer
    */
   handleDoorStateChange(event) {
@@ -257,6 +356,31 @@ class RoomTransitionCoordinator {
           // Signal til PersonTracker at stabilitet skal resettes
           this.emitter.emit("resetStability", { personId, doorId });
           console.log(`[Coordinator] ${personId} stability reset due to door ${doorId} opening`);
+        }
+      }
+    }
+  }
+
+  /**
+   * Håndter motion sensor-tilstandsendringer
+   */
+  handleMotionSensorStateChange(event) {
+    const { sensorId, state } = event;
+
+    if (state === true) { // Motion detektert
+      // Sjekk om noen personer var låst av denne sensoren
+      for (const [personId, personState] of Object.entries(this.personStates)) {
+        if (personState.lockedMotionSensors && personState.lockedMotionSensors[sensorId]) {
+          delete personState.lockedMotionSensors[sensorId];
+          console.log(`[Coordinator] ${personId} unlocked by motion sensor ${sensorId} activating`);
+
+          if (Object.keys(personState.lockedMotionSensors).length === 0) {
+            this.emitter.emit("personUnlockedFromMotion", { personId, sensorId });
+          }
+
+          // Signal til PersonTracker at stabilitet skal resettes
+          this.emitter.emit("resetStability", { personId, sensorId });
+          console.log(`[Coordinator] ${personId} stability reset due to motion sensor ${sensorId} activating`);
         }
       }
     }

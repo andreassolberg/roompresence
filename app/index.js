@@ -170,6 +170,33 @@ apiRouter.get("/house/history", (req, res) => {
   res.json(houseState.getAllHistory());
 });
 
+// Motion sensor state endpoints
+apiRouter.get("/house/motion-sensors", (req, res) => {
+  if (!houseState || !houseState.ready) {
+    return res.status(503).json({ error: "House state tracking not available" });
+  }
+  res.json(houseState.getMotionSensorStates());
+});
+
+apiRouter.get("/house/motion-sensors/:sensorId", (req, res) => {
+  if (!houseState || !houseState.ready) {
+    return res.status(503).json({ error: "House state tracking not available" });
+  }
+  const sensorState = houseState.getMotionSensorState(req.params.sensorId);
+  if (!sensorState) {
+    return res.status(404).json({ error: `Motion sensor not found: ${req.params.sensorId}` });
+  }
+  res.json(sensorState);
+});
+
+apiRouter.get("/house/motion-sensors/:sensorId/history", (req, res) => {
+  if (!houseState || !houseState.ready) {
+    return res.status(503).json({ error: "House state tracking not available" });
+  }
+  const history = houseState.getMotionSensorHistory(req.params.sensorId);
+  res.json({ sensorId: req.params.sensorId, history, count: history.length });
+});
+
 // Training data analysis endpoints
 const trainingDataPath = process.env.TRAINING_DATA_PATH || path.join(__dirname, "../build_model/data");
 

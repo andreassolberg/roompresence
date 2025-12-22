@@ -86,11 +86,39 @@ class HomieListener {
     });
   }
 
+  // Subscribe to a specific motion sensor
+  subscribeToMotionSensor(sensorId) {
+    if (!config.house || !config.house.homieDeviceId) {
+      console.error("Cannot subscribe to motion sensor: config.house.homieDeviceId not configured");
+      return;
+    }
+
+    const topic = `homie/${config.house.homieDeviceId}/${sensorId}/#`;
+
+    this.client.subscribe(topic, (err) => {
+      if (err) {
+        console.error(`Failed to subscribe to ${topic}`, err);
+      } else {
+        console.log(`Subscribed to motion sensor: ${topic}`);
+        this.subscriptions.push(topic);
+      }
+    });
+  }
+
   // Parse Homie protocol values
   parseHomieValue(messageStr, property) {
     // Handle boolean contact sensors
     if (property === "alarm-contact") {
       // Homie convention: "true" string = open, "false" = closed
+      if (messageStr === "true") return true;
+      if (messageStr === "false") return false;
+      // Also handle actual boolean values
+      if (messageStr === true || messageStr === false) return messageStr;
+    }
+
+    // Handle boolean motion sensors
+    if (property === "alarm-motion") {
+      // Homie convention: "true" string = motion detected, "false" = no motion
       if (messageStr === "true") return true;
       if (messageStr === "false") return false;
       // Also handle actual boolean values
