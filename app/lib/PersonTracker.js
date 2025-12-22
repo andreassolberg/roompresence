@@ -311,6 +311,18 @@ class PersonTracker {
     console.log(`Initializing ${this.devices.length} device(s) for ${this.personId}:`);
     this.initializeDevicesWithSensors(sensorOrder);
 
+    // Lytt til coordinator events
+    if (this.coordinator) {
+      this.coordinator.onResetStability((event) => {
+        if (event.personId === this.personId) {
+          console.log(`[${this.personId}] Stability reset due to door ${event.doorId} opening`);
+          this.room0Since = now();  // Reset stabilitetstimer
+          this.room0SuperStable = false;  // Ikke lenger superStable
+          this.publishState();  // Publiser ny tilstand
+        }
+      });
+    }
+
     this.ready = true;
   }
 

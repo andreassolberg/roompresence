@@ -204,6 +204,10 @@ class RoomTransitionCoordinator {
           if (Object.keys(personState.lockedDoors).length === 0) {
             this.emitter.emit("personUnlocked", { personId, doorId });
           }
+
+          // Signal til PersonTracker at stabilitet skal resettes
+          this.emitter.emit("resetStability", { personId, doorId });
+          console.log(`[Coordinator] ${personId} stability reset due to door ${doorId} opening`);
         }
       }
     }
@@ -216,6 +220,10 @@ class RoomTransitionCoordinator {
 
   onPersonUnlocked(callback) {
     this.emitter.on("personUnlocked", callback);
+  }
+
+  onResetStability(callback) {
+    this.emitter.on("resetStability", callback);
   }
 }
 
