@@ -35,9 +35,6 @@ class PersonTracker {
     this.room0Since = now();
     this.room0Confident = false;
     this.room0Stable = false;
-    this.room5 = "na";
-    this.room15 = "na";
-    this.room120 = "na";
     this.room0SuperStable = false; // true når room0 har vært stabil i 120+ sekunder
     this.roomHistory = [];  // Array av { room, timestamp } for siste 24 timer
     this.rooms = null; // Will be loaded from model metadata
@@ -166,14 +163,12 @@ class PersonTracker {
       activeState.stream.sendMessage(this.personId, {
         room: this.room,
         room0: this.room0,
-        room5: this.room5,
-        room15: this.room15,
-        room120: this.room120,
+        room0Since: this.room0Since,
         activeDevice: this.activeDevice,
-        superStable: this.room0SuperStable, // NY
-        doorLocked: Object.keys(lockedDoors).length > 0, // NY
-        lockedDoors: Object.keys(lockedDoors), // NY
-        pendingTransition: this.room !== this.room0 // NY - viser blokkert overgang
+        superStable: this.room0SuperStable,
+        doorLocked: Object.keys(lockedDoors).length > 0,
+        lockedDoors: Object.keys(lockedDoors),
+        pendingTransition: this.room !== this.room0
       });
     }
   }
@@ -202,7 +197,6 @@ class PersonTracker {
     // Sjekk stabilitet (5 sekunder med samme room0)
     if (since > 5 && !this.room0Stable) {
       this.room0Stable = true;
-      this.room5 = room;
       updated = true;
     }
 
@@ -262,17 +256,6 @@ class PersonTracker {
         }
         updated = true; // Publiser state for å vise at room0 har endret seg
       }
-    }
-
-    // room15/120 baseres på room0Since
-    if (since > 15 && this.room15 !== room) {
-      this.room15 = room;
-      updated = true;
-    }
-
-    if (since > 120 && this.room120 !== room) {
-      this.room120 = room;
-      updated = true;
     }
 
     // Evaluer låsetilstand kontinuerlig når superStable
@@ -432,11 +415,8 @@ class PersonTracker {
         this.room0 = "na";
         this.room0Confident = false;
         this.room0Stable = false;
-        this.room0SuperStable = false; // NY
+        this.room0SuperStable = false;
         this.room0Since = now();
-        this.room5 = "na";
-        this.room15 = "na";
-        this.room120 = "na";
 
         // Fjern låste dører når person forsvinner
         if (this.coordinator) {
@@ -504,8 +484,8 @@ class PersonTracker {
       const since = now() - this.room0Since;
       console.log(
         `Room [${this.room}] room0[${this.room0}] ` +
-        `conf:${this.room0Confident} stable:${this.room0Stable} ` +
-        `since ${since}s  5s[${this.room5}]  15s[${this.room15}]  120s[${this.room120}]`
+        `conf:${this.room0Confident} stable:${this.room0Stable} superStable:${this.room0SuperStable} ` +
+        `since ${since}s`
       );
     }
   }
